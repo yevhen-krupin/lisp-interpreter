@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -25,7 +26,10 @@ func main() {
 		}
 	}
 	if !okp {
-		port = "8080"
+		port = os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
 	}
 	http.HandleFunc("/repl", serve)
 	log.Printf("serve /repl as ws://localhost:%v/repl", port)
