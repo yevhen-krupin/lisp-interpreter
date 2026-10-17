@@ -1,0 +1,11 @@
+{
+  "$schema": "https://vercel.sh",
+  "functions": {
+    "main.go": {
+      "includeFiles": "static/**"
+    }
+  },
+  "routes": [
+    { "src": "/(.*)", "dest": "main.go" }
+  ]
+}
