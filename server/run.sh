@@ -1,1 +1,1 @@
-./lisp-repl-server -o build/test/work --bind localhost:8080
+./lisp-repl-server -o build/test/work

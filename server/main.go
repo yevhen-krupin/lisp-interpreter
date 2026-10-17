@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -11,17 +12,27 @@ import (
 )
 
 var lisp = interpreter.Lisp()
+var maxStack = 15
 
 func main() {
-	bind, okb := interpreter.GetArgument("-b", "--bind")
-	if okb {
-		http.HandleFunc("/repl", serve)
-		log.Printf("serve /repl as ws://%v/repl", bind)
-		http.Handle("/", http.FileServer(http.Dir("./static")))
-		log.Printf("serve static home / as https://%v/", bind)
-		log.Println("binding address", bind)
-		log.Fatal(http.ListenAndServe(bind, nil))
+	port, okp := interpreter.GetArgument("-p", "--port")
+	ms, okm := interpreter.GetArgument("-ms", "--max-stack")
+	if okm {
+		if msp, err := strconv.Atoi(ms); err == nil {
+			maxStack = msp
+		} else {
+			log.Fatal("unable to parse --max-stack or -ms value, the integer is expected but was:", ms)
+		}
 	}
+	if !okp {
+		port = "8080"
+	}
+	http.HandleFunc("/repl", serve)
+	log.Printf("serve /repl as ws://localhost:%v/repl", port)
+	http.Handle("/", http.FileServer(http.Dir("./static")))
+	log.Printf("serve static home / as https://localhost:%v/", port)
+	log.Println("binding port", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 func serve(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +44,7 @@ func serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close()
-	runtime := interpreter.NewRuntime(15)
+	runtime := interpreter.NewRuntime(maxStack)
 	for {
 		mt, message, err := c.ReadMessage()
 		if err != nil {
