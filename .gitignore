@@ -8,3 +8,4 @@ ri/darm64cl.image
 ri/darwinarm64.tar.gz
 .gitignore
 ri/darwin-arm64-headers/
+.vercel

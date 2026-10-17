@@ -1,0 +1,11 @@
+FROM golang:1.26-alpine AS build
+COPY ./server ./server
+COPY ./core ./core
+COPY ./server/static /server/static
+RUN go -C ./server build -o /repl main.go
+
+FROM alpine:3.22
+COPY --from=build ./server/static /static
+COPY --from=build /repl /repl
+
+CMD ["/repl"]
