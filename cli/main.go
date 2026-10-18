@@ -86,7 +86,7 @@ func repl() {
 			ast, _, _ := interpreter.ParseAst(string(sentence[:len(sentence)-1]), runtime.SymbolTable, lisp)
 			print(ast, "")
 			r := runtime.EvaluateAst(ast)
-			fmt.Println("Evaluated", r.Type, r.Value, r.Error)
+			fmt.Println(r.String())
 		}
 	}
 }

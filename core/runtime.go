@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync/atomic"
 )
 
@@ -147,9 +148,14 @@ func (r Runtime) evaluate(node *Node) EvaluationResult {
 			})
 		}
 	}
+
 	// expression that just returns something
 	if node.Kind == Expression && len(node.Nodes) == 1 {
 		return r.evaluate(node.Nodes[0])
+	}
+
+	if node.Kind == Declaration {
+		return EvaluationResult{Unknown, strings.ToUpper(string(node.Value)), nil}
 	}
 
 	return EvaluationResult{Unknown, nil, fmt.Errorf("unrecognized node %v", node)}
@@ -210,5 +216,6 @@ func first_error(input ...error) error {
 }
 
 func (e EvaluationResult) String() string {
-	return fmt.Sprintln("Evaluated @ type:", e.Type, "value:", e.Value, "error:", e.Error)
+	return fmt.Sprintln(e.Value)
+	//return fmt.Sprintln("Evaluated @ type:", e.Type, "value:", e.Value, "error:", e.Error)
 }

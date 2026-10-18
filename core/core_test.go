@@ -59,6 +59,8 @@ func TestEvaluation(tt *testing.T) {
 			"\"Hello, Coding Challenges\""},
 		{"(defun hello() (\"Hello Coding Challenges\"))\n(hello)",
 			"\"Hello Coding Challenges\""},
+		// function declaration emit function name
+		{"(defun fib (n)  (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))", "FIB"},
 	}
 	var bools = []TestCase[bool]{
 		{"t", true},

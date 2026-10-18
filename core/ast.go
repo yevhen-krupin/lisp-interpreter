@@ -142,7 +142,7 @@ func (p *Parser) decl_node() *Node {
 		// currently the function gets redeclared globally but we want to support functions scope
 		// e.g. function shadowed within function
 		(*p.SymbolTable.Functions)[string(name.Value)] = FunctionEntry{Name: string(name.Value), Body: body, Arguments: arguments}
-		return node(SymbolAtom, name.Value, body.Type, []*Node{arguments, body})
+		return node(Declaration, name.Value, body.Type, []*Node{arguments, body})
 	}
 	return nil
 }

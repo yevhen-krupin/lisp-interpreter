@@ -24,6 +24,7 @@ const (
 	Expression       Kind = "Expression"
 	Atom             Kind = "Atom"
 	ConditionAtom    Kind = "ConditionAtom"
+	Declaration      Kind = "Declaration"
 	SymbolAtom       Kind = "SymbolAtom"
 	BinaryOperator   Kind = "BinaryOperator"
 	ArgumentVariable Kind = "ArgumentVariable"

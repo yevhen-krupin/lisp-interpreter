@@ -1,7 +1,6 @@
 package core
 
 import (
-	"log"
 	"slices"
 )
 
@@ -34,17 +33,14 @@ func value_to_any(data []byte) any {
 		}
 	}
 	if len(data) != 4 {
-		log.Println("str4", string(data))
 		return string(data)
 	}
 	for _, ch := range data {
 		// only bytes of real numbers, not characters meaning digits
 		if ch > 9 {
-			log.Println("str", ch, rune(ch), string(data))
 			return string(data)
 		}
 	}
-	log.Println("int", bytes_to_int32(data))
 	return bytes_to_int32(data)
 }
 
