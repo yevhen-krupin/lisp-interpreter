@@ -35,12 +35,125 @@
       font: inherit;
       width: 90%;
     }
+
+    .terminal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Modal Overlay Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: #1c1c1c;
+      border: 1px solid #444;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 90%;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+
+    .help-btn {
+      background: #222;
+      color: #8b949e;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+
+    .help-btn:hover {
+      color: #7ee787;
+      border-color: #7ee787;
+    }
+
+    .close-btn {
+      background: none;
+      border: 0;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .close-btn:hover {
+      color: #ff6b6b;
+    }
+
+    .help-grid {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 8px 16px;
+      font-size: 13px;
+    }
+
+    .help-label {
+      color: #7ee787;
+    }
   </style>
 </head>
 
 <body>
   <div class="terminal" x-data="repl()" x-init="connect()">
-    <div><span style="color:#7ee787">●</span> REPL <span x-text="connected ? 'connected' : 'disconnected'"></span></div>
+    <div class="terminal-header" x-data="{ helpOpen: false }">
+      <div><span style="color:#7ee787">●</span> REPL <span x-text="connected ? 'connected' : 'disconnected'"></span>
+      </div>
+      <button class="help-btn" @click="helpOpen = true">Help</button>
+      <!-- Help Modal implementation using global Alpine state variables -->
+      <div class="modal-overlay" x-show="helpOpen" x-transition.opacity @click.self="helpOpen = false"
+        style="display: none;">
+        <div class="modal-content" x-show="helpOpen" x-transition.scale.95>
+          <div class="modal-header">
+            <span style="font-weight: bold; color: #7ee787;">Lisp Interpreter Documentation</span>
+            <button class="close-btn" @click="helpOpen = false">&times;</button>
+          </div>
+
+          <div class="help-grid">
+            <div class="help-label">Types:</div>
+            <div>int, string, bool</div>
+
+            <div class="help-label">Operators:</div>
+            <div>+, -, *, /, =, &lt;, &gt;, &lt;=, &gt;=</div>
+
+            <div class="help-label">Expressions:</div>
+            <div>(+ 1 2)<br>(&lt; 1 2)</div>
+
+            <div class="help-label">Condition:</div>
+            <div>(if (= 2 2) 1 2)</div>
+
+            <div class="help-label">Functions:</div>
+            <div>(defun doublen (n) (* n 2))<br>(doublen 2)</div>
+
+            <div class="help-label">History:</div>
+            <div>Use Up / Down arrow keys</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
     <hr>
     <div id="output" x-ref="output" x-text="output"></div>
     <form @submit.prevent="send()">
