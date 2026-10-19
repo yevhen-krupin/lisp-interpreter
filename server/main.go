@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -31,12 +32,25 @@ func main() {
 			port = "8080"
 		}
 	}
+	version()
 	http.HandleFunc("/repl", serve)
 	log.Printf("serve /repl as ws://localhost:%v/repl", port)
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	log.Printf("serve static home / as https://localhost:%v/", port)
 	log.Println("binding port", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+func version() {
+	f, err := os.OpenFile("./static/version.txt", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	ver := CompileInfo{}.Get()
+	_, err = f.WriteString(fmt.Sprintf("%v.%v", ver.Version, ver.Commit[:8]))
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func serve(w http.ResponseWriter, r *http.Request) {
