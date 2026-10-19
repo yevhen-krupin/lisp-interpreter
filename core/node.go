@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 )
 
 // "fmt"
@@ -58,9 +59,15 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func print(node *Node, indent string) {
-	log.Println(indent, node.Kind, "-", node.Type, ":", node.Value, "[", value_to_any(node.Value), "]")
+func (n *Node) String() string {
+	sb := strings.Builder{}
+	_print(&sb, n, "")
+	return sb.String()
+}
+
+func _print(sb *strings.Builder, node *Node, indent string) {
+	sb.WriteString(fmt.Sprintln(indent, node.Kind, "-", node.Type, ":", node.Value, "[", value_to_any(node.Value), "]"))
 	for _, n := range node.Nodes {
-		print(n, indent+"  ")
+		_print(sb, n, indent+"  ")
 	}
 }

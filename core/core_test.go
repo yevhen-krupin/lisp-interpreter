@@ -197,7 +197,7 @@ func TestEvaluation(tt *testing.T) {
 				log.Println("Failed to evaluate due to", r.Error.Error())
 			} else {
 				log.Println(r.String())
-				print(ast.Root, "")
+				log.Println(ast.String())
 			}
 		}
 	}**/
@@ -285,7 +285,7 @@ func evaluate_test_case[T int | bool | string](name string, index int, element T
 	defer s.Close()
 	for sub_element := range subs {
 		ast, _, _ := ParseAst(sub_element, runtime.SymbolTable, Lisp())
-		print(ast, "")
+		log.Println(ast.String())
 		nodes = append(nodes, ast)
 		r := runtime.EvaluateAst(ast)
 		results = append(results, r)
@@ -302,7 +302,7 @@ func evaluate_test_case[T int | bool | string](name string, index int, element T
 		} else {
 			log.Println("Evaluated as:", r.Type, r.Value)
 		}
-		print(nodes[i], "")
+		log.Println(nodes[i].String())
 	}
 
 	return final, s.f.Name()
