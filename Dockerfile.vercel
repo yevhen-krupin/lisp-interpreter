@@ -1,11 +1,27 @@
-FROM golang:1.26-alpine AS build
+FROM golang:1.26-alpine AS build-stage
+
+WORKDIR /app
 COPY ./server ./server
 COPY ./core ./core
 COPY ./server/static /server/static
-RUN go -C ./server build -o /repl main.go
+
+WORKDIR /app/server
+## need for version
+RUN apk add git
+RUN go mod download
+
+WORKDIR /app
+## copies code and .git - need for version
+COPY ./.git ./.git 
+
+WORKDIR /app/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /repl
 
 FROM alpine:3.22
-COPY --from=build ./server/static /static
-COPY --from=build /repl /repl
 
-CMD ["/repl"]
+WORKDIR /
+
+COPY --from=build-stage /server/static /static
+COPY --from=build-stage /repl /repl
+
+ENTRYPOINT ["/repl"]
