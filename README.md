@@ -29,5 +29,3 @@ A command line inferface to the interpreter. Repl by default. Accepts file via `
 
 ## Server
 Repl as a server, hosts static terminal-like page and connects to the interpreter via websocket. The server version has limited default stack depth.
-
-Dockerized version is hosted on vercel.
