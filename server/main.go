@@ -2,11 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -33,25 +31,12 @@ func main() {
 			port = "8080"
 		}
 	}
-	version()
 	http.HandleFunc("/repl", serve)
-	log.Printf("serve /repl as ws://localhost:%v/repl", port)
+	log.Printf("serve /repl as ws://:%v/repl", port)
 	http.Handle("/", http.FileServer(http.Dir("./static")))
-	log.Printf("serve static home / as https://localhost:%v/", port)
+	log.Printf("serve static home / as https://:%v/", port)
 	log.Println("binding port", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
-
-func version() {
-	f, err := os.OpenFile("./static/version.txt", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	ver := CompileInfo{}.Get()
-	_, err = f.WriteString(fmt.Sprintf("%v.%v", ver.Version, ver.Commit[:8]))
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 func serve(w http.ResponseWriter, r *http.Request) {
@@ -98,38 +83,4 @@ type Response struct {
 	Result       interpreter.EvaluationResult `json:"result"`
 	ResultString string                       `json:"resultString"`
 	Errors       []error                      `json:"errors"`
-}
-
-type CompileInfo struct {
-	Package    string
-	GoVersion  string
-	Commit     string
-	CommitTime string
-	Modified   bool
-	Version    string
-}
-
-func (CompileInfo) Get() CompileInfo {
-	out := CompileInfo{}
-
-	z, ok := debug.ReadBuildInfo()
-	if !ok {
-		return out
-	}
-
-	out.GoVersion = z.GoVersion
-	out.Package = z.Path
-	out.Version = z.Main.Version
-	for _, s := range z.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			out.Commit = s.Value
-		case "vcs.time":
-			out.CommitTime = s.Value
-		case "vcs.modified":
-			out.Modified = s.Value == "true"
-		}
-	}
-
-	return out
 }
