@@ -35,8 +35,8 @@ func TestTokenizer(tt *testing.T) {
 			t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc(), so(), i("doublen"), d(2), sc()),
 		},
 		{"\"Hello, Coding Challenges\"",
-			t(s("\"Hello, Coding Challenges\""))},
-		{"(defun hello() (\"Hello Coding Challenges\"))\n(hello)", t(so(), f(), i("hello"), so(), sc(), so(), s("\"Hello Coding Challenges\""), sc(), sc(), so(), i("hello"), sc())},
+			t(s("Hello, Coding Challenges"))},
+		{"(defun hello() (\"Hello Coding Challenges\"))\n(hello)", t(so(), f(), i("hello"), so(), sc(), so(), s("Hello Coding Challenges"), sc(), sc(), so(), i("hello"), sc())},
 	}
 
 	for index, element := range cases {
@@ -56,16 +56,22 @@ func TestTokenizer(tt *testing.T) {
 func TestEvaluation(tt *testing.T) {
 	var strings = []TestCase[string]{
 		{"\"Hello, Coding Challenges\"",
-			"\"Hello, Coding Challenges\""},
+			"Hello, Coding Challenges"},
 		{"(defun hello() (\"Hello Coding Challenges\"))\n(hello)",
-			"\"Hello Coding Challenges\""},
+			"Hello Coding Challenges"},
 		// function declaration emit function name
 		{"(defun fib (n)  (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))", "FIB"},
 	}
 	var bools = []TestCase[bool]{
 		{"t", true},
+		{"t", true},
+		{"T", true},
 		{"T", true},
 		{"nil", false},
+		{"nil", false},
+		{"NIL", false},
+		{"'NIL", false},
+		{"()", false},
 		{"(< 1 2)", true},
 		{"(< 2 2)", false},
 		{"(< 3 2)", false},
@@ -182,7 +188,6 @@ func TestEvaluation(tt *testing.T) {
 	/**
 
 	array := []string{
-		"()",
 		// ":CC",
 		"(format t \"Hello, Coding Challenge World World\")",
 	}
@@ -225,7 +230,7 @@ func t(args ...*Token) []*Token {
 }
 
 func d(i int) *Token {
-	return &Token{Literal, int32_to_bytes(i)}
+	return &Token{LiteralInt, int32_to_bytes(i)}
 }
 
 func f() *Token {
@@ -237,7 +242,7 @@ func i(s string) *Token {
 }
 
 func s(s string) *Token {
-	return &Token{Literal, []byte(s)}
+	return &Token{LiteralString, []byte(s)}
 }
 
 func c(c string) *Token {
@@ -284,7 +289,8 @@ func evaluate_test_case[T int | bool | string](name string, index int, element T
 	s := ToDisk(TEST_DIR, file)
 	defer s.Close()
 	for sub_element := range subs {
-		ast, _, _ := ParseAst(sub_element, runtime.SymbolTable, Lisp())
+		ast, tokens, _ := ParseAst(sub_element, runtime.SymbolTable, Lisp())
+		log.Println(tokens.String())
 		log.Println(ast.String())
 		nodes = append(nodes, ast)
 		r := runtime.EvaluateAst(ast)

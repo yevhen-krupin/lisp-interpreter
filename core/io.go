@@ -37,7 +37,7 @@ func ToDisk(dir string, file string) Scope {
 	if _, err := os.Stat(dir + "/" + file); err == nil {
 		os.Remove(file)
 	}
-	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}

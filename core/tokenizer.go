@@ -14,12 +14,14 @@ import (
 type TokenKind string
 
 const (
-	Identifier TokenKind = "Identifier"
-	Operator   TokenKind = "Operator"
-	Punctuator TokenKind = "Punctuator"
-	Literal    TokenKind = "Literal"
-	Keyword    TokenKind = "Keyword"
-	Comment    TokenKind = "Comment"
+	Identifier    TokenKind = "Identifier"
+	Operator      TokenKind = "Operator"
+	Punctuator    TokenKind = "Punctuator"
+	LiteralInt    TokenKind = "LiteralInt"
+	LiteralString TokenKind = "LiteralString"
+	LiteralBool   TokenKind = "LiteralBool"
+	Keyword       TokenKind = "Keyword"
+	Comment       TokenKind = "Comment"
 )
 
 type TokenStream []*Token
@@ -120,19 +122,25 @@ func (p *Tokenizer) literal() *Token {
 	for _, s := range p.Lexic.Literals.String {
 		if p.are(s) {
 			length := p.whilent([]byte{s[0]}, 1)
-			return &Token{Literal, p.drop(length + 1)}
+			// drop the open quote
+			p.drop(1)
+			token := &Token{LiteralString, p.drop(length - 1)}
+			p.drop(1)
+			return token
 		}
 	}
 	// can be end of expression
 	for _, s := range p.Lexic.Literals.True {
 		if p.are(s+" ") || p.are(s+")") {
-			return &Token{Literal, p.drop(len(s))}
+			_ = p.drop(len(s))
+			return &Token{LiteralBool, []byte{1}}
 		}
 	}
 	// can be end of expression
 	for _, s := range p.Lexic.Literals.Null {
 		if p.are(s+" ") || p.are(s+")") {
-			return &Token{Literal, p.drop(len(s))}
+			_ = p.drop(len(s))
+			return &Token{LiteralBool, []byte{0}}
 		}
 	}
 	// are numbers = literal
@@ -144,7 +152,7 @@ func (p *Tokenizer) literal() *Token {
 		if err != nil {
 			log.Println("Error: unable to convert", s, "to int:", err)
 		}
-		return &Token{Literal, int32_to_bytes(i)}
+		return &Token{LiteralInt, int32_to_bytes(i)}
 	}
 	return nil
 }

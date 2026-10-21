@@ -33,8 +33,8 @@ func Lisp() *Lexic {
 		// note: longest operators first
 		Operators: []string{">=", "<=", ">", "<", "=", "+", "-", "*", "/"},
 		Literals: Literals{
-			True:   []string{"t", "T"},
-			Null:   []string{"nil"},
+			True:   []string{"t", "T", "'t", "'T"},
+			Null:   []string{"nil", "NIL", "'nil", "'NIL"},
 			String: []string{"\""},
 		},
 		Comments: Comments{

@@ -92,24 +92,14 @@ func (p Parser) setup_argument_references(node *Node, arguments *Node) {
 }
 
 func (p *Parser) literal_node() *Node {
-	if p.peek().TokenKind == Literal {
-		token := p.eat()
-		if looks_like_string(token.Value, p.Lexic.Literals.String) {
-			log.Println("literal string", token)
-			return node(Atom, token.Value, String, []*Node{})
-		}
-		// not string - can distinguish by size
-		if len(token.Value) == 4 {
-			log.Println("literal int", token)
-			return node(Atom, token.Value, Int, []*Node{})
-		}
-		// only supported type left is boolean
-		if slices.Contains(p.Lexic.Literals.True, string(token.Value)) {
-			log.Println("literal bool", token)
-			return node(Atom, []byte{1}, Boolean, []*Node{})
-		}
-		log.Println("literal unknown", token)
-		return node(Atom, []byte{0}, Boolean, []*Node{})
+	if p.peek().TokenKind == LiteralBool {
+		return node(Atom, p.eat().Value, Boolean, []*Node{})
+	}
+	if p.peek().TokenKind == LiteralString {
+		return node(Atom, p.eat().Value, String, []*Node{})
+	}
+	if p.peek().TokenKind == LiteralInt {
+		return node(Atom, p.eat().Value, Int, []*Node{})
 	}
 	return nil
 }

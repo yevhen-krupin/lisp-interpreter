@@ -154,6 +154,11 @@ func (r Runtime) evaluate(node *Node) EvaluationResult {
 		return r.evaluate(node.Nodes[0])
 	}
 
+	// empty expression evaluates as nil or false
+	if node.Kind == Expression && len(node.Nodes) == 0 {
+		return EvaluationResult{Boolean, false, nil}
+	}
+
 	if node.Kind == Declaration {
 		return EvaluationResult{Unknown, strings.ToUpper(string(node.Value)), nil}
 	}
