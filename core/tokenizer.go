@@ -50,7 +50,7 @@ func (s TokenStream) Diagnostic() string {
 	var sb strings.Builder
 	sb.WriteRune('[')
 	for i, e := range s {
-		sb.WriteString(fmt.Sprintf("[%v, '%v', %v:%v]", e.TokenKind, value_to_any(e.Value), e.Location.Line, e.Location.Position))
+		sb.WriteString(fmt.Sprintf("[%v, '%v', %v]", e.TokenKind, value_to_any(e.Value), e.Location))
 		if i < len(s)-1 {
 			sb.WriteRune(',')
 		}
@@ -76,6 +76,10 @@ type Tokenizer struct {
 type Location struct {
 	Line     int
 	Position int
+}
+
+func (l Location) String() string {
+	return fmt.Sprintf("%v:%v", l.Line, l.Position)
 }
 
 func tokenize(input string, lexic *Lexic) iter.Seq[*Token] {

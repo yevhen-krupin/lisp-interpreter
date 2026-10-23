@@ -68,7 +68,6 @@ func TestTokenizer(tt *testing.T) {
 
 	for index, element := range cases {
 		tt.Run(fmt.Sprintf("tokenizer_test [%d] %v", index, element.input), func(t *testing.T) {
-
 			file := fmt.Sprintf("%v_%v.log", "tokenizer_test", index)
 			s := ToDisk(TEST_DIR, file)
 			defer s.Close()
@@ -81,6 +80,14 @@ func TestTokenizer(tt *testing.T) {
 }
 
 func TestEvaluation(tt *testing.T) {
+	var errors = []TestCase[[]ParserError]{
+		{"(+ 1 \"hello\")", []ParserError{
+			ParserError{fmt.Errorf("%v. Candidates are: %v and %v", UnableToConsolidateType, Int, String), &Location{0, 0}}},
+		},
+		{"(+ 1 (+ 1 \"hello\"))", []ParserError{
+			ParserError{fmt.Errorf("%v. Candidates are: %v and %v", UnableToConsolidateType, Int, String), &Location{0, 4}}},
+		},
+	}
 	var strings = []TestCase[string]{
 		{"\"Hello, Coding Challenges\"",
 			"Hello, Coding Challenges"},
@@ -189,27 +196,47 @@ func TestEvaluation(tt *testing.T) {
 		{";; comment whatever\n5;; comment whatever", 5},
 	}
 
+	for index, element := range errors {
+		tt.Run(fmt.Sprintf("error test [%d] %v", index, element.input), func(t *testing.T) {
+			_, file, errors := evaluate_test_case("TestEvaluation_strings", index, element)
+			if eq_err(errors, element.output) {
+				t.Errorf("The input '%v' was expected to produce errors '%v' but produced '%v', log: %v", element.input, element.output, errors, file)
+				if len(errors) > 0 {
+					t.Errorf("The parser errors:\n %v", ParserErrorStream(errors).Diagnostic())
+				}
+			}
+		})
+	}
 	for index, element := range strings {
 		tt.Run(fmt.Sprintf("string test [%d] %v", index, element.input), func(t *testing.T) {
-			result, file := evaluate_test_case("TestEvaluation_strings", index, element)
+			result, file, errors := evaluate_test_case("TestEvaluation_strings", index, element)
 			if result.Value != element.output {
 				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v', log: %v", element.input, element.output, result.Value, file)
+				if len(errors) > 0 {
+					t.Errorf("The parser errors:\n %v", ParserErrorStream(errors).Diagnostic())
+				}
 			}
 		})
 	}
 	for index, element := range bools {
 		tt.Run(fmt.Sprintf("bool test [%d] %v", index, element.input), func(t *testing.T) {
-			result, file := evaluate_test_case("TestEvaluation_bools", index, element)
+			result, file, errors := evaluate_test_case("TestEvaluation_bools", index, element)
 			if result.Value != element.output {
 				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v', log: %v", element.input, element.output, result.Value, file)
+				if len(errors) > 0 {
+					t.Errorf("The parser errors: %v", ParserErrorStream(errors).Diagnostic())
+				}
 			}
 		})
 	}
 	for index, element := range ints {
 		tt.Run(fmt.Sprintf("int test [%d] %v", index, element.input), func(t *testing.T) {
-			result, file := evaluate_test_case("TestEvaluation_ints", index, element)
+			result, file, errors := evaluate_test_case("TestEvaluation_ints", index, element)
 			if result.Value != element.output {
 				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v', log: %v", element.input, element.output, result.Value, file)
+				if len(errors) > 0 {
+					t.Errorf("The parser errors: %v", ParserErrorStream(errors).Diagnostic())
+				}
 			}
 		})
 	}
@@ -296,9 +323,22 @@ func eq(a []*Token, b []*Token) bool {
 	return true
 }
 
+func eq_err(a []ParserError, b []ParserError) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, e := range a {
+		if e.Error.Error() != b[i].Error.Error() || e.Location.Line != b[i].Location.Line || e.Location.Position != b[i].Location.Position {
+			return false
+		}
+	}
+
+	return true
+}
+
 const TEST_DIR = "build/test/work"
 
-type TestCase[T int | bool | string | []*Token] struct {
+type TestCase[T int | bool | string | []*Token | []ParserError] struct {
 	input  string
 	output T
 }
@@ -308,17 +348,18 @@ type TestResult struct {
 	fail int
 }
 
-func evaluate_test_case[T int | bool | string](name string, index int, element TestCase[T]) (EvaluationResult, string) {
+func evaluate_test_case[T int | bool | string | []ParserError](name string, index int, element TestCase[T]) (EvaluationResult, string, []ParserError) {
 	results := []EvaluationResult{}
 	nodes := []*Node{}
 	subs := strings.SplitSeq(element.input, "\n")
-
+	errors := []ParserError{}
 	runtime := NewRuntime(10)
 	file := fmt.Sprintf("%v_%v.log", name, index)
 	s := ToDisk(TEST_DIR, file)
 	defer s.Close()
 	for sub_element := range subs {
-		ast, tokens, _ := ParseAst(sub_element, runtime.SymbolTable, Lisp())
+		ast, tokens, errs := ParseAst(sub_element, runtime.SymbolTable, Lisp())
+		errors = slices.Concat(errors, errs)
 		log.Println(tokens.String())
 		log.Println(ast.String())
 		nodes = append(nodes, ast)
@@ -340,5 +381,5 @@ func evaluate_test_case[T int | bool | string](name string, index int, element T
 		log.Println(nodes[i].String())
 	}
 
-	return final, s.f.Name()
+	return final, s.f.Name(), errors
 }
