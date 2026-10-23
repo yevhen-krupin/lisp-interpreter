@@ -6,13 +6,9 @@ COPY ./core ./core
 COPY ./server/static /server/static
 
 WORKDIR /app/server
-## need for version
-RUN apk add git
 RUN go mod download
 
 WORKDIR /app
-## copies code and .git - need for version
-COPY ./.git ./.git 
 
 WORKDIR /app/server
 RUN CGO_ENABLED=0 GOOS=linux go build -o /repl
