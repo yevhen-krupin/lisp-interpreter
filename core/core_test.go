@@ -10,33 +10,60 @@ import (
 
 func TestTokenizer(tt *testing.T) {
 	var cases []TestCase[[]*Token] = []TestCase[[]*Token]{
-		{";;comment", t(c(";;comment"))},
-		{"1", t(d(1))},
-		{"32", t(d(32))},
-		{"255", t(d(255))},
-		{"256", t(d(256))},
-		{"16777217", t(d(16777217))},
-		{"(+ 1 2)", t(so(), o("+"), d(1), d(2), sc())},
-		{"(- 1 2)", t(so(), o("-"), d(1), d(2), sc())},
-		{"(* 1 2)", t(so(), o("*"), d(1), d(2), sc())},
-		{"(/ 1 2)", t(so(), o("/"), d(1), d(2), sc())},
-		{"(/1 2)", t(so(), o("/"), d(1), d(2), sc())},
-		{"(/ 1 2 )", t(so(), o("/"), d(1), d(2), sc())},
-		{"( / 1 2)", t(so(), o("/"), d(1), d(2), sc())},
-		{"(defun fact (n) (if (<= n 1) 1 (* n (fact (- n 1)))))", t(so(), f(), i("fact"), so(), i("n"), sc(), so(), kw("if"), so(), o("<="), i("n"), d(1), sc(), d(1), so(), o("*"), i("n"), so(), i("fact"), so(), o("-"), i("n"), d(1), sc(), sc(), sc(), sc(), sc())},
-		{"(defun doublen (n) (* n 2))", t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc())},
-		{"(defun doublen(n) (* n 2))", t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc())},
-		{"(defun doublen (n)(* n 2))", t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc())},
-		{"(defun doublen(n)(* n 2))", t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc())},
-		{"(defun doublen (n) (*n 2))", t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc())},
-		{"(defun doublen (n) (* n 2)   )", t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc())},
+		{";;comment", t(c(";;comment", 0, 0))},
+		// digits
+		{"1", t(d(1, 0, 0))},
+		{"32", t(d(32, 0, 0))},
+		{"255", t(d(255, 0, 0))},
+		{"256", t(d(256, 0, 0))},
+		{"16777217", t(d(16777217, 0, 0))},
+		// basic math, binary operations
+		{"(+ 1 2)", t(so(0, 0), o("+", 0, 1), d(1, 0, 3), d(2, 0, 5), sc(0, 6))},
+		{"(- 1 2)", t(so(0, 0), o("-", 0, 1), d(1, 0, 3), d(2, 0, 5), sc(0, 6))},
+		{"(* 1 2)", t(so(0, 0), o("*", 0, 1), d(1, 0, 3), d(2, 0, 5), sc(0, 6))},
+		{"(/ 1 2)", t(so(0, 0), o("/", 0, 1), d(1, 0, 3), d(2, 0, 5), sc(0, 6))},
+		{"(/1 2)", t(so(0, 0), o("/", 0, 1), d(1, 0, 2), d(2, 0, 4), sc(0, 5))},
+		{"(/ 1 2 )", t(so(0, 0), o("/", 0, 1), d(1, 0, 3), d(2, 0, 5), sc(0, 7))},
+		{"( / 1 2)", t(so(0, 0), o("/", 0, 2), d(1, 0, 4), d(2, 0, 6), sc(0, 7))},
+		// identifier, ending with whitespace or punctuation
+		{"(if () 1 2)", t(so(0, 0), kw("if", 0, 1), so(0, 4), sc(0, 5), d(1, 0, 7), d(2, 0, 9), sc(0, 10))},
+		{"(if() 1 2)", t(so(0, 0), kw("if", 0, 1), so(0, 3), sc(0, 4), d(1, 0, 6), d(2, 0, 8), sc(0, 9))},
+		{"(n)", t(so(0, 0), i("n", 0, 1), sc(0, 2))},
+		{"(n )", t(so(0, 0), i("n", 0, 1), sc(0, 3))},
+		{"( n)", t(so(0, 0), i("n", 0, 2), sc(0, 3))},
+		{"( n )", t(so(0, 0), i("n", 0, 2), sc(0, 4))},
+		{"(n())", t(so(0, 0), i("n", 0, 1), so(0, 2), sc(0, 3), sc(0, 4))},
+		{"(n ())", t(so(0, 0), i("n", 0, 1), so(0, 3), sc(0, 4), sc(0, 5))},
+		// function difinitions
+		{"(defun fact (n) (if (<= n 1) 1 (* n (fact (- n 1)))))",
+			t(so(0, 0), f(0, 1), i("fact", 0, 7), so(0, 12), i("n", 0, 13), sc(0, 14), so(0, 16), kw("if", 0, 17), so(0, 20), o("<=", 0, 21), i("n", 0, 24), d(1, 0, 26), sc(0, 27), d(1, 0, 29), so(0, 31), o("*", 0, 32), i("n", 0, 34), so(0, 36), i("fact", 0, 37), so(0, 42), o("-", 0, 43), i("n", 0, 45), d(1, 0, 47), sc(0, 48), sc(0, 49), sc(0, 50), sc(0, 51), sc(0, 52))},
+		{"(defun doublen (n) (* n 2))",
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 15), i("n", 0, 16), sc(0, 17), so(0, 19), o("*", 0, 20), i("n", 0, 22), d(2, 0, 24), sc(0, 25), sc(0, 26))},
+		{"(defun doublen(n) (* n 2))",
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 14), i("n", 0, 15), sc(0, 16), so(0, 18), o("*", 0, 19), i("n", 0, 21), d(2, 0, 23), sc(0, 24), sc(0, 25))},
+		{"(defun doublen (n)(* n 2))",
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 15), i("n", 0, 16), sc(0, 17), so(0, 18), o("*", 0, 19), i("n", 0, 21), d(2, 0, 23), sc(0, 24), sc(0, 25))},
+		{"(defun doublen(n)(* n 2))",
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 14), i("n", 0, 15), sc(0, 16), so(0, 17), o("*", 0, 18), i("n", 0, 20), d(2, 0, 22), sc(0, 23), sc(0, 24))},
+		{"(defun doublen (n) (*n 2))",
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 15), i("n", 0, 16), sc(0, 17), so(0, 19), o("*", 0, 20), i("n", 0, 21), d(2, 0, 23), sc(0, 24), sc(0, 25))},
+		{"(defun doublen (n) (* n 2) )",
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 15), i("n", 0, 16), sc(0, 17), so(0, 19), o("*", 0, 20), i("n", 0, 22), d(2, 0, 24), sc(0, 25), sc(0, 27))},
+		//multiline
+		{
+			"(defun doublen (n) (* n 2))\n(doublen 2)",
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 15), i("n", 0, 16), sc(0, 17), so(0, 19), o("*", 0, 20), i("n", 0, 22), d(2, 0, 24), sc(0, 25), sc(0, 26), so(1, 0), i("doublen", 1, 1), d(2, 1, 9), sc(1, 10)),
+		},
+		// same but with whitespace at the beginning of the second line
 		{
 			"(defun doublen (n) (* n 2))\n (doublen 2)",
-			t(so(), f(), i("doublen"), so(), i("n"), sc(), so(), o("*"), i("n"), d(2), sc(), sc(), so(), i("doublen"), d(2), sc()),
+			t(so(0, 0), f(0, 1), i("doublen", 0, 7), so(0, 15), i("n", 0, 16), sc(0, 17), so(0, 19), o("*", 0, 20), i("n", 0, 22), d(2, 0, 24), sc(0, 25), sc(0, 26), so(1, 1), i("doublen", 1, 2), d(2, 1, 10), sc(1, 11)),
 		},
+		// strings
 		{"\"Hello, Coding Challenges\"",
-			t(s("Hello, Coding Challenges"))},
-		{"(defun hello() (\"Hello Coding Challenges\"))\n(hello)", t(so(), f(), i("hello"), so(), sc(), so(), s("Hello Coding Challenges"), sc(), sc(), so(), i("hello"), sc())},
+			t(s("Hello, Coding Challenges", 0, 0))},
+		{"(defun hello() (\"Hello Coding Challenges\"))\n(hello)",
+			t(so(0, 0), f(0, 1), i("hello", 0, 7), so(0, 12), sc(0, 13), so(0, 15), s("Hello Coding Challenges", 0, 16), sc(0, 41), sc(0, 42), so(1, 0), i("hello", 1, 1), sc(1, 6))},
 	}
 
 	for index, element := range cases {
@@ -47,7 +74,7 @@ func TestTokenizer(tt *testing.T) {
 			defer s.Close()
 			tokens := slices.Collect(tokenize(element.input, Lisp()))
 			if !eq(tokens, element.output) {
-				t.Errorf("The input '%v' was expected to be tokenized as '%v' but was tokenized as '%v', log: %v", element.input, TokenStream(element.output).String(), TokenStream(tokens).String(), s.f.Name())
+				t.Errorf("The input '%v' was expected to be tokenized as '%v' but was tokenized as '%v', log: %v", element.input, TokenStream(element.output).Diagnostic(), TokenStream(tokens).Diagnostic(), s.f.Name())
 			}
 		})
 	}
@@ -102,6 +129,8 @@ func TestEvaluation(tt *testing.T) {
 		{"(defun doublen (n) (* n 2))\n (doublen 2)", 4},
 		// conditional evaluation
 		{"(if (= 2 2) 1 2)", 1},
+		// () evaluates as false
+		{"(if () 1 2)", 2},
 		{"(defun twoorthree (n) (if (= n 2) 2 3))\n (twoorthree 2)", 2},
 		{"(defun twoorthree (n) (if (= n 2) 2 3))\n (twoorthree 1)", 3},
 
@@ -209,44 +238,44 @@ func TestEvaluation(tt *testing.T) {
 
 }
 
-func kw(s string) *Token {
-	return &Token{Keyword, []byte(s)}
+func kw(s string, line int, pos int) *Token {
+	return &Token{Keyword, []byte(s), Location{line, pos}}
 }
 
-func so() *Token {
-	return &Token{Punctuator, []byte{'('}}
+func so(line int, pos int) *Token {
+	return &Token{Punctuator, []byte{'('}, Location{line, pos}}
 }
 
-func sc() *Token {
-	return &Token{Punctuator, []byte{')'}}
+func sc(line int, pos int) *Token {
+	return &Token{Punctuator, []byte{')'}, Location{line, pos}}
 }
 
-func o(op string) *Token {
-	return &Token{Operator, []byte(op)}
+func o(op string, line int, pos int) *Token {
+	return &Token{Operator, []byte(op), Location{line, pos}}
 }
 
 func t(args ...*Token) []*Token {
 	return args
 }
 
-func d(i int) *Token {
-	return &Token{LiteralInt, int32_to_bytes(i)}
+func d(i int, line int, pos int) *Token {
+	return &Token{LiteralInt, int32_to_bytes(i), Location{line, pos}}
 }
 
-func f() *Token {
-	return &Token{Keyword, []byte("defun")}
+func f(line int, pos int) *Token {
+	return &Token{Keyword, []byte("defun"), Location{line, pos}}
 }
 
-func i(s string) *Token {
-	return &Token{Identifier, []byte(s)}
+func i(s string, line int, pos int) *Token {
+	return &Token{Identifier, []byte(s), Location{line, pos}}
 }
 
-func s(s string) *Token {
-	return &Token{LiteralString, []byte(s)}
+func s(s string, line int, pos int) *Token {
+	return &Token{LiteralString, []byte(s), Location{line, pos}}
 }
 
-func c(c string) *Token {
-	return &Token{Comment, []byte(c)}
+func c(c string, line int, pos int) *Token {
+	return &Token{Comment, []byte(c), Location{line, pos}}
 }
 
 func eq(a []*Token, b []*Token) bool {
@@ -254,7 +283,7 @@ func eq(a []*Token, b []*Token) bool {
 		return false
 	}
 	for i, e := range a {
-		if e.TokenKind != b[i].TokenKind {
+		if e.TokenKind != b[i].TokenKind || e.Location.Line != b[i].Location.Line || e.Location.Position != b[i].Location.Position {
 			return false
 		}
 		for j, ch := range e.Value {

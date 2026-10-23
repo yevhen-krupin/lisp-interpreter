@@ -46,19 +46,40 @@ func (s TokenStream) String() string {
 	return sb.String()
 }
 
+func (s TokenStream) Diagnostic() string {
+	var sb strings.Builder
+	sb.WriteRune('[')
+	for i, e := range s {
+		sb.WriteString(fmt.Sprintf("[%v, '%v', %v:%v]", e.TokenKind, value_to_any(e.Value), e.Location.Line, e.Location.Position))
+		if i < len(s)-1 {
+			sb.WriteRune(',')
+		}
+	}
+	sb.WriteRune(']')
+	return sb.String()
+}
+
 type Token struct {
 	TokenKind TokenKind
 	Value     []byte
+	Location  Location
 }
 
 type Tokenizer struct {
-	Input    string
-	Lexic    *Lexic
+	Input     string
+	Lexic     *Lexic
+	Position  int
+	Line      int
+	LineStart int
+}
+
+type Location struct {
+	Line     int
 	Position int
 }
 
 func tokenize(input string, lexic *Lexic) iter.Seq[*Token] {
-	tokenizer := &Tokenizer{input, lexic, 0}
+	tokenizer := &Tokenizer{input, lexic, 0, 0, 0}
 	return tokenizer.tokenize0()
 }
 
@@ -93,7 +114,7 @@ func (tokenizer *Tokenizer) tokenize0() iter.Seq[*Token] {
 func (p *Tokenizer) scope() *Token {
 	for _, s := range p.Lexic.Punctuators.All {
 		if p.are(s) {
-			return &Token{Punctuator, p.drop(len(s))}
+			return p.token(Punctuator, len(s))
 		}
 	}
 	return nil
@@ -102,7 +123,7 @@ func (p *Tokenizer) scope() *Token {
 func (p *Tokenizer) operator() *Token {
 	for _, s := range p.Lexic.Operators {
 		if p.are(s) {
-			return &Token{Operator, p.drop(len(s))}
+			return p.token(Operator, len(s))
 		}
 	}
 	return nil
@@ -110,49 +131,60 @@ func (p *Tokenizer) operator() *Token {
 
 func (p *Tokenizer) keyword() *Token {
 	for _, s := range p.Lexic.Keywords {
-		if p.are(s+" ") || p.are(s+"(") {
-			return &Token{Keyword, p.drop(len(s))}
+		if p.are(s+" ") || p.are(s+"\n") {
+			// end of the word
+			return p.token(Keyword, len(s))
+		}
+		for _, pp := range p.Lexic.Punctuators.All {
+			// end of the word with punctuatore like `identifier,` or `identifier(` or `identifier)`
+			if p.are(s + pp) {
+				return p.token(Keyword, len(s))
+			}
+
 		}
 	}
 	return nil
 }
 
 func (p *Tokenizer) literal() *Token {
-
 	for _, s := range p.Lexic.Literals.String {
 		if p.are(s) {
-			length := p.whilent([]byte{s[0]}, 1)
-			// drop the open quote
-			p.drop(1)
-			token := &Token{LiteralString, p.drop(length - 1)}
-			p.drop(1)
+			// skip open string marker and then look for close marker
+			// skip 1 otherwise we find the same marker and it will be empty string
+			// + 1 because we count both open and close marker in the length
+			length := p.whilent([]byte{s[0]}, 1) + 1
+			token := p.tokenF(LiteralString, length, func(v []byte) []byte {
+				// drop the open and close marker
+				// [' . . . . ]
+				//  '[. . . .]'
+				return v[1 : len(v)-1]
+			})
 			return token
 		}
 	}
 	// can be end of expression
 	for _, s := range p.Lexic.Literals.True {
 		if p.are(s+" ") || p.are(s+")") {
-			_ = p.drop(len(s))
-			return &Token{LiteralBool, []byte{1}}
+			return p.tokenV(LiteralBool, len(s), []byte{1})
 		}
 	}
 	// can be end of expression
 	for _, s := range p.Lexic.Literals.Null {
 		if p.are(s+" ") || p.are(s+")") {
-			_ = p.drop(len(s))
-			return &Token{LiteralBool, []byte{0}}
+			return p.tokenV(LiteralBool, len(s), []byte{0})
 		}
 	}
 	// are numbers = literal
 	digits := p.while(unicode.IsDigit)
 	if digits > 0 {
-		// convert bytes -> string -> number
-		s := string(p.drop(digits))
-		i, err := strconv.Atoi(s)
-		if err != nil {
-			log.Println("Error: unable to convert", s, "to int:", err)
-		}
-		return &Token{LiteralInt, int32_to_bytes(i)}
+		return p.tokenF(LiteralInt, digits, func(v []byte) []byte {
+			// convert bytes -> string -> number
+			i, err := strconv.Atoi(string(v))
+			if err != nil {
+				log.Println("Error: unable to convert", string(v), "to int:", err)
+			}
+			return int32_to_bytes(i)
+		})
 	}
 	return nil
 }
@@ -164,7 +196,7 @@ func (p *Tokenizer) identifier() *Token {
 		length := p.while(func(r rune) bool {
 			return unicode.IsDigit(r) || unicode.IsLetter(r)
 		})
-		return &Token{Identifier, p.drop(length)}
+		return p.token(Identifier, length)
 	}
 	return nil
 }
@@ -173,10 +205,25 @@ func (p *Tokenizer) comment() *Token {
 	for _, s := range p.Lexic.Comments.Line {
 		if p.are(s) {
 			length := p.whilent([]byte{'\n'}, 1)
-			return &Token{Comment, p.drop(length)}
+			return p.token(Comment, length)
 		}
 	}
 	return nil
+}
+
+func (p *Tokenizer) token(kind TokenKind, len int) *Token {
+	location, value := p.drop(len)
+	return &Token{kind, value, location}
+}
+
+func (p *Tokenizer) tokenV(kind TokenKind, len int, override []byte) *Token {
+	location, _ := p.drop(len)
+	return &Token{kind, override, location}
+}
+
+func (p *Tokenizer) tokenF(kind TokenKind, len int, convert func(v []byte) []byte) *Token {
+	location, value := p.drop(len)
+	return &Token{kind, convert(value), location}
 }
 
 func (p *Tokenizer) in() bool {
@@ -220,15 +267,34 @@ func (p *Tokenizer) isnt(char byte) bool {
 	return p.in() && !p.is(char)
 }
 
-func (p *Tokenizer) drop(count int) []byte {
-	s := []byte(p.Input[p.Position : p.Position+count])
+func (p *Tokenizer) drop(count int) (Location, []byte) {
+	location := Location{p.Line, p.Position - p.LineStart}
+	value := []byte(p.Input[p.Position : p.Position+count])
+	// each time when we see newline we increment the line and set line start into the next char after \n
+	for i, c := range value {
+		if c == '\n' {
+			// position where drop started
+			// i - position of \n inside of the dropped sequence
+			// +1 in order to skip the \n itself otherwise the location within new line is shifted
+			p.line(p.Position + i + 1)
+		}
+	}
 	p.Position += count
-	return s
+	return location, value
 }
 
 func (p *Tokenizer) trim() {
-	// tokens can be split by spaces or even new lines
-	for p.is(' ') || p.is('\n') {
+	// tokens can be split by spaces
+	for p.is(' ') {
 		p.drop(1)
 	}
+	// or even new lines
+	for p.is('\n') {
+		p.drop(1)
+	}
+}
+
+func (p *Tokenizer) line(start int) {
+	p.Line += 1
+	p.LineStart = start
 }
