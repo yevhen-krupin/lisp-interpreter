@@ -82,5 +82,5 @@ type Response struct {
 	Ast          *interpreter.Node            `json:"ast"`
 	Result       interpreter.EvaluationResult `json:"result"`
 	ResultString string                       `json:"resultString"`
-	Errors       []error                      `json:"errors"`
+	Errors       []interpreter.ParserError    `json:"errors"`
 }
