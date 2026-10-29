@@ -3,7 +3,6 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"iter"
 	"log"
 	"slices"
 	"strconv"
@@ -82,37 +81,36 @@ func (l Location) String() string {
 	return fmt.Sprintf("%v:%v", l.Line, l.Position)
 }
 
-func tokenize(input string, lexic *Lexic) iter.Seq[*Token] {
+func tokenize(input string, lexic *Lexic) ([]*Token, []Error) {
 	tokenizer := &Tokenizer{input, lexic, 0, 0, 0}
 	return tokenizer.tokenize0()
 }
 
-func (tokenizer *Tokenizer) tokenize0() iter.Seq[*Token] {
-	return func(yield func(*Token) bool) {
-		last_pos := tokenizer.Position
-		for tokenizer.in() {
-			tokenizer.trim()
-			log.Println("input left:", tokenizer.Input[tokenizer.Position:len(tokenizer.Input)])
-			t := coalesce(
-				tokenizer,
-				(*Tokenizer).comment,
-				(*Tokenizer).scope,
-				(*Tokenizer).keyword,
-				(*Tokenizer).operator,
-				(*Tokenizer).literal,
-				(*Tokenizer).identifier,
-			)
-			if t != nil {
-				if !yield(t) {
-					return
-				}
-			} else {
-				if tokenizer.Position == last_pos {
-					panic(fmt.Sprintln("tokenizer is stuck, unknown token", tokenizer.Input[tokenizer.Position:len(tokenizer.Input)]))
-				}
+func (tokenizer *Tokenizer) tokenize0() ([]*Token, []Error) {
+	tokens := []*Token{}
+	errors := []Error{}
+	last_pos := tokenizer.Position
+	for tokenizer.in() {
+		tokenizer.trim()
+		//log.Println("input left:", tokenizer.Input[tokenizer.Position:len(tokenizer.Input)])
+		t := coalesce(
+			tokenizer,
+			(*Tokenizer).comment,
+			(*Tokenizer).scope,
+			(*Tokenizer).keyword,
+			(*Tokenizer).operator,
+			(*Tokenizer).literal,
+			(*Tokenizer).identifier,
+		)
+		if t != nil {
+			tokens = append(tokens, t)
+		} else {
+			if tokenizer.Position == last_pos {
+				errors = append(errors, Error{Location: tokenizer.location(), Error: fmt.Errorf("unknown token '%v'", tokenizer.Input[tokenizer.Position:len(tokenizer.Input)])})
 			}
 		}
 	}
+	return tokens, errors
 }
 
 func (p *Tokenizer) scope() *Token {
@@ -272,7 +270,7 @@ func (p *Tokenizer) isnt(char byte) bool {
 }
 
 func (p *Tokenizer) drop(count int) (Location, []byte) {
-	location := Location{p.Line, p.Position - p.LineStart}
+	location := p.location()
 	value := []byte(p.Input[p.Position : p.Position+count])
 	// each time when we see newline we increment the line and set line start into the next char after \n
 	for i, c := range value {
@@ -285,6 +283,10 @@ func (p *Tokenizer) drop(count int) (Location, []byte) {
 	}
 	p.Position += count
 	return location, value
+}
+
+func (p *Tokenizer) location() Location {
+	return Location{p.Line, p.Position - p.LineStart}
 }
 
 func (p *Tokenizer) trim() {

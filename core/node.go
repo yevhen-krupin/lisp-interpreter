@@ -15,7 +15,7 @@ const (
 	Boolean ResultType = "Boolean"
 	String  ResultType = "String"
 	Int     ResultType = "Int"
-	Error   ResultType = "Error"
+	Failure ResultType = "Failure"
 	Unknown ResultType = "Unknown"
 )
 
@@ -37,16 +37,17 @@ type Node struct {
 	Value         []byte
 	Nodes         []*Node
 	ArgumentIndex int
+	Location      *Location
 }
 
-func node(kind Kind, value []byte, rt ResultType, nodes []*Node) *Node {
+func node(kind Kind, token *Token, rt ResultType, nodes []*Node) *Node {
 	var node Node
 	node.Type = rt
 	node.Kind = kind
-	node.Value = value
+	node.Value = token.Value
 	node.Nodes = nodes
-
-	log.Println("node", fmt.Sprintf("%p", &node), ": kind ", kind, " | type ", rt, "| value ", string(value), " | nodes", nodes)
+	node.Location = &token.Location
+	log.Println("node", fmt.Sprintf("%p", &node), ": kind ", kind, " | type ", rt, "| value ", string(token.Value), " | nodes", nodes)
 	return &node
 }
 

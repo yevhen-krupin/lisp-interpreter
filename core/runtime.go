@@ -171,7 +171,7 @@ func (r Runtime) binary_operator(node *Node, f func(EvaluationResult, Evaluation
 	a := r.operand(node, 0)
 	b := r.operand(node, 1)
 	if a.Error != nil || b.Error != nil {
-		return EvaluationResult{Error, nil, first_error(a.Error, b.Error)}
+		return EvaluationResult{Failure, nil, first_error(a.Error, b.Error)}
 	}
 	return f(a, b)
 }
@@ -186,15 +186,16 @@ func (r Runtime) operand(node *Node, index int) EvaluationResult {
 func (r Runtime) call_function(name string, args []*EvaluationResult, functionArguments *Node, functionBody *Node) EvaluationResult {
 	//interrupt to max stack
 	if r.MaxStack < len(*r.Stack) {
-		return EvaluationResult{Error: fmt.Errorf("Reached max stack depth %v, please increase MaxStack to avoid this error", r.MaxStack)}
+		return EvaluationResult{Error: StackOverflow(r.MaxStack)}
 	}
 	// check arguments
 	if len(functionArguments.Nodes) != len(args) {
-		return EvaluationResult{Error: fmt.Errorf("arguments count provided to the function `%v` don't match declared function, expected: %d, actual: %d", name, len(functionArguments.Nodes), len(args))}
+		return EvaluationResult{Error: ArgumentsCountError(name, len(functionArguments.Nodes), len(args))}
 	}
+
 	for i := 0; i < len(args); i++ {
 		if args[i].Type != functionArguments.Nodes[i].Type {
-			return EvaluationResult{Error: fmt.Errorf("the argument %v type provided to the function `%v` doesn't match declared function's argument type, expected: %v, actual: %v", string(functionArguments.Nodes[i].Value), name, functionArguments.Nodes[i].Type, args[i].Type)}
+			return EvaluationResult{Error: TypeConsolidationError(args[i].Value, functionArguments.Nodes[i].Type)}
 		}
 	}
 
@@ -204,7 +205,7 @@ func (r Runtime) call_function(name string, args []*EvaluationResult, functionAr
 	res := r.evaluate(functionBody)
 	top := (*r.Stack)[len(*r.Stack)-1]
 	if top.id != frame.id {
-		panic("unexpected state: the stack frame after leaving the function is not correct")
+		return EvaluationResult{Error: UnexpectedStackStateError()}
 	}
 	*r.Stack = (*r.Stack)[:len(*r.Stack)-1]
 	log.Println("function", name, "args", args, "result", res.Type, ":", res.Value)

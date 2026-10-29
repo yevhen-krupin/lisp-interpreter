@@ -1,38 +1,13 @@
 package core
 
 import (
-	"fmt"
 	"log"
 	"slices"
-	"strings"
 )
-
-type ParserError struct {
-	Error    error
-	Location *Location
-}
-
-type ParserErrors string
-
-const (
-	UnableToConsolidateType ParserErrors = "ERR01: Unable to consolidate types."
-)
-
-type ParserErrorStream []ParserError
-
-func (p ParserErrorStream) Diagnostic() string {
-	var sb strings.Builder
-	for i, e := range p {
-		sb.WriteString(fmt.Sprintln("ParserError:", e.Error, *e.Location))
-		if i < len(p)-1 {
-		}
-	}
-	return sb.String()
-}
 
 type Parser struct {
 	SymbolTable *SymbolTable
-	Errors      *[]ParserError
+	Errors      *[]Error
 	Position    int
 	Input       []*Token
 	Lexic       *Lexic
@@ -42,9 +17,9 @@ type SymbolTable struct {
 	Functions *map[string]FunctionEntry
 }
 
-func ParseAst(input string, symbolTable *SymbolTable, lexic *Lexic) (*Node, TokenStream, []ParserError) {
-	data := slices.Collect(tokenize(input, lexic))
-	p := Parser{symbolTable, &[]ParserError{}, 0, data, lexic}
+func ParseAst(input string, symbolTable *SymbolTable, lexic *Lexic) (*Node, TokenStream, []Error) {
+	data, errors := tokenize(input, lexic)
+	p := Parser{symbolTable, &errors, 0, data, lexic}
 	node := p.atom_node()
 	return node, TokenStream(data), *p.Errors
 }
@@ -90,7 +65,7 @@ func (p *Parser) expression_node() *Node {
 		if err != nil {
 			p.record_error(err, &beginning.Location)
 		}
-		return node(Expression, []byte{}, t, nodes)
+		return node(Expression, beginning, t, nodes)
 	}
 	return nil
 }
@@ -103,12 +78,9 @@ func (p Parser) setup_argument_references(node *Node, arguments *Node, location 
 				n.Kind = ArgumentVariable
 				log.Println("argument reference setup for", a, n)
 				n.ArgumentIndex = i
-				if a.Type == Unknown && n.Type != Unknown {
-					a.Type = n.Type
-				} else {
-					if a.Type != n.Type {
-						p.record_error(fmt.Errorf("Inconsistent typing of argument %v", string(a.Value)), location)
-					}
+				_, err := consolidate_type(n, a)
+				if err != nil {
+					p.record_error(err, node.Location)
 				}
 			}
 		}
@@ -121,13 +93,13 @@ func (p Parser) setup_argument_references(node *Node, arguments *Node, location 
 
 func (p *Parser) literal_node() *Node {
 	if p.peek().TokenKind == LiteralBool {
-		return node(Atom, p.eat().Value, Boolean, []*Node{})
+		return node(Atom, p.eat(), Boolean, []*Node{})
 	}
 	if p.peek().TokenKind == LiteralString {
-		return node(Atom, p.eat().Value, String, []*Node{})
+		return node(Atom, p.eat(), String, []*Node{})
 	}
 	if p.peek().TokenKind == LiteralInt {
-		return node(Atom, p.eat().Value, Int, []*Node{})
+		return node(Atom, p.eat(), Int, []*Node{})
 	}
 	return nil
 }
@@ -160,7 +132,7 @@ func (p *Parser) decl_node() *Node {
 		// currently the function gets redeclared globally but we want to support functions scope
 		// e.g. function shadowed within function
 		(*p.SymbolTable.Functions)[string(name.Value)] = FunctionEntry{Name: string(name.Value), Body: body, Arguments: arguments}
-		return node(Declaration, name.Value, body.Type, []*Node{arguments, body})
+		return node(Declaration, name, body.Type, []*Node{arguments, body})
 	}
 	return nil
 }
@@ -174,7 +146,7 @@ func (p *Parser) condition_node() *Node {
 		if err != nil {
 			p.record_error(err, &name.Location)
 		}
-		return node(ConditionAtom, name.Value, t, []*Node{body, left, right})
+		return node(ConditionAtom, name, t, []*Node{body, left, right})
 
 	}
 	return nil
@@ -192,7 +164,7 @@ func (p *Parser) binary_operator_node() *Node {
 		// TODO: this place looks hacky, need to figure out better way
 		operand1.Type = t
 		operand2.Type = t
-		return node(BinaryOperator, operator.Value, t, []*Node{operand1, operand2})
+		return node(BinaryOperator, operator, t, []*Node{operand1, operand2})
 	}
 	return nil
 }
@@ -200,7 +172,7 @@ func (p *Parser) binary_operator_node() *Node {
 func (p *Parser) identifier() *Node {
 	if p.peek().TokenKind == Identifier {
 		// variable or function call, resolved at runtime
-		return node(SymbolAtom, p.eat().Value, Unknown, []*Node{})
+		return node(SymbolAtom, p.eat(), Unknown, []*Node{})
 	}
 	return nil
 }
@@ -213,11 +185,11 @@ func (p *Parser) peek() *Token {
 }
 
 func (p *Parser) undefined_node() *Node {
-	return node(Atom, p.eat().Value, Unknown, []*Node{})
+	return node(Atom, p.eat(), Unknown, []*Node{})
 }
 
 func (p Parser) record_error(err error, location *Location) {
-	*p.Errors = append(*p.Errors, ParserError{err, location})
+	*p.Errors = append(*p.Errors, Error{err, *location})
 }
 
 func (p *Parser) in() bool {
@@ -247,7 +219,7 @@ func consolidate_type(input ...*Node) (ResultType, error) {
 			if item.Type == Unknown {
 				item.Type = first
 			} else if item.Type != first {
-				return Unknown, fmt.Errorf("%v. Candidates are: %v and %v", UnableToConsolidateType, first, item.Type)
+				return Unknown, TypeConsolidationError(value_to_any(item.Value), first)
 			}
 		}
 	}
