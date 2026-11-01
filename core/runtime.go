@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"sync/atomic"
 )
@@ -10,9 +9,9 @@ import (
 var ops atomic.Uint64
 
 type Runtime struct {
-	Stack       *[]StackFrame
+	Stack       []StackFrame
+	Frame       int
 	SymbolTable *SymbolTable
-	MaxStack    int
 }
 
 type EvaluationResultValue any
@@ -30,30 +29,25 @@ type Argument struct {
 
 type StackFrame struct {
 	id        uint64
-	Function  string
-	Arguments []*EvaluationResult
+	Arguments []EvaluationResultValue
 }
 
 type FunctionEntry struct {
-	Name      string
-	Body      *Node
-	Arguments *Node
+	Name               string
+	Body               *Node
+	Arguments          *Node
+	EvaluatedArguments []EvaluationResult
 }
 
 func NewRuntime(maxStack int) Runtime {
-	return Runtime{&[]StackFrame{}, &SymbolTable{Functions: &map[string]FunctionEntry{}}, maxStack}
+	return Runtime{make([]StackFrame, maxStack), 0, &SymbolTable{Functions: &map[string]FunctionEntry{}}}
 }
 
 func (r Runtime) EvaluateAst(ast *Node) EvaluationResult {
-	*r.Stack = []StackFrame{{Function: "__entry_point", Arguments: []*EvaluationResult{}}}
-	return r.evaluate(ast)
+	return r.evaluate(ast, StackFrame{})
 }
 
-func (r Runtime) last_frame() StackFrame {
-	return (*r.Stack)[len(*r.Stack)-1]
-}
-
-func (r Runtime) evaluate(node *Node) EvaluationResult {
+func (r Runtime) evaluate(node *Node, frame StackFrame) EvaluationResult {
 	// int literal
 	if node.Kind == Atom && node.Type == Int {
 		return EvaluationResult{Int, bytes_to_int32(node.Value), nil}
@@ -71,7 +65,7 @@ func (r Runtime) evaluate(node *Node) EvaluationResult {
 		if len(node.Nodes) != 3 {
 			return EvaluationResult{Unknown, nil, fmt.Errorf("condition atom should have 3 children nodes: condition body and two branches for true and false")}
 		}
-		result := r.evaluate(node.Nodes[0])
+		result := r.evaluate(node.Nodes[0], frame)
 		if result.Error != nil {
 			return result
 		}
@@ -79,79 +73,36 @@ func (r Runtime) evaluate(node *Node) EvaluationResult {
 			return EvaluationResult{Unknown, nil, fmt.Errorf("condition evaluation should to return boolean but was %v : %v", result.Type, result.Value)}
 		}
 		if result.Value == true {
-			log.Println("condition -> true branch")
-			return r.evaluate(node.Nodes[1])
+			//log.Println("condition -> true branch")
+			return r.evaluate(node.Nodes[1], frame)
 		} else {
-			log.Println("condition -> false branch", node.Nodes[2])
-			return r.evaluate(node.Nodes[2])
+			//log.Println("condition -> false branch", node.Nodes[2])
+			return r.evaluate(node.Nodes[2], frame)
 		}
 	}
 
 	// resolve argument variable
-	if node.Kind == ArgumentVariable && len(node.Nodes) == 0 && node.ArgumentIndex >= 0 && len(*r.Stack) > 0 && node.ArgumentIndex < len(r.last_frame().Arguments) {
+	if node.Kind == ArgumentVariable && len(node.Nodes) == 0 && node.ArgumentIndex >= 0 && node.ArgumentIndex < len(frame.Arguments) {
 		// todo: convert into a real stack
-		arg_value := r.last_frame().Arguments[node.ArgumentIndex]
-		return EvaluationResult{arg_value.Type, arg_value.Value, nil}
+		arg_value := frame.Arguments[node.ArgumentIndex]
+		return EvaluationResult{node.Type, arg_value, nil}
 	}
 	// call function
 	if node.Kind == Expression && len(node.Nodes) > 0 && node.Nodes[0].Kind == SymbolAtom {
 		if f, ok := (*r.SymbolTable.Functions)[string(node.Nodes[0].Value)]; ok {
-			resolved := []*EvaluationResult{}
-			for i, n := range node.Nodes {
-				if i > 0 {
-					arg := r.evaluate(n)
-					log.Println("resolved argument", n, arg)
-					resolved = append(resolved, &arg)
-				}
-			}
-			return r.call_function(string(node.Nodes[0].Value), resolved, f.Arguments, f.Body)
+			return r.call_function(node, f, frame)
 		}
 	}
 
 	// operators
 	if node.Kind == BinaryOperator {
 		oper := node
-		if oper.Value[0] == '+' {
-			return r.binary_operator(oper, func(a, b EvaluationResult) EvaluationResult {
-				return EvaluationResult{Int, a.Value.(int) + b.Value.(int), nil}
-			})
-		}
-		if oper.Value[0] == '-' {
-			return r.binary_operator(oper, func(a, b EvaluationResult) EvaluationResult {
-				return EvaluationResult{Int, a.Value.(int) - b.Value.(int), nil}
-			})
-		}
-		if oper.Value[0] == '*' {
-			return r.binary_operator(oper, func(a, b EvaluationResult) EvaluationResult {
-				return EvaluationResult{Int, a.Value.(int) * b.Value.(int), nil}
-			})
-		}
-		if oper.Value[0] == '/' {
-			return r.binary_operator(oper, func(a, b EvaluationResult) EvaluationResult {
-				return EvaluationResult{Int, a.Value.(int) / b.Value.(int), nil}
-			})
-		}
-		if oper.Value[0] == '=' {
-			return r.binary_operator(oper, func(a, b EvaluationResult) EvaluationResult {
-				return EvaluationResult{Boolean, a.Value.(int) == b.Value.(int), nil}
-			})
-		}
-		if oper.Value[0] == '<' {
-			return r.binary_operator(oper, func(a, b EvaluationResult) EvaluationResult {
-				//log.Println("evaluate <", a.Value.(int), b.Value.(int), a.Value.(int) < b.Value.(int))
-				return EvaluationResult{Boolean, a.Value.(int) < b.Value.(int), nil}
-			})
-		}
-		if oper.Value[0] == '>' {
-			return r.binary_operator(oper, func(a, b EvaluationResult) EvaluationResult {
-				return EvaluationResult{Boolean, a.Value.(int) > b.Value.(int), nil}
-			})
-		}
+		return r.binary_operator(oper, frame)
 	}
 
 	// expression that just returns something
 	if node.Kind == Expression && len(node.Nodes) == 1 {
-		return r.evaluate(node.Nodes[0])
+		return r.evaluate(node.Nodes[0], frame)
 	}
 
 	// empty expression evaluates as nil or false
@@ -166,49 +117,71 @@ func (r Runtime) evaluate(node *Node) EvaluationResult {
 	return EvaluationResult{Unknown, nil, fmt.Errorf("unrecognized node %v", node)}
 }
 
-func (r Runtime) binary_operator(node *Node, f func(EvaluationResult, EvaluationResult) EvaluationResult) EvaluationResult {
-	log.Println("evaluating binary operator", node)
-	a := r.operand(node, 0)
-	b := r.operand(node, 1)
+func (r Runtime) binary_operator(oper *Node, frame StackFrame) EvaluationResult {
+	//log.Println("evaluating binary operator", oper)
+	a := r.operand(oper, 0, frame)
+	b := r.operand(oper, 1, frame)
+
 	if a.Error != nil || b.Error != nil {
 		return EvaluationResult{Failure, nil, first_error(a.Error, b.Error)}
 	}
-	return f(a, b)
+
+	if oper.Value[0] == '+' {
+		return EvaluationResult{Int, a.Value.(int) + b.Value.(int), nil}
+	}
+	if oper.Value[0] == '-' {
+		return EvaluationResult{Int, a.Value.(int) - b.Value.(int), nil}
+	}
+	if oper.Value[0] == '*' {
+		return EvaluationResult{Int, a.Value.(int) * b.Value.(int), nil}
+	}
+	if oper.Value[0] == '/' {
+		return EvaluationResult{Int, a.Value.(int) / b.Value.(int), nil}
+	}
+	if oper.Value[0] == '=' {
+		return EvaluationResult{Boolean, a.Value.(int) == b.Value.(int), nil}
+	}
+	if oper.Value[0] == '<' {
+		return EvaluationResult{Boolean, a.Value.(int) < b.Value.(int), nil}
+	}
+	if oper.Value[0] == '>' {
+		return EvaluationResult{Boolean, a.Value.(int) > b.Value.(int), nil}
+	}
+	return EvaluationResult{Failure, nil, UnknownBinaryOperator(oper.Value[0])}
 }
 
-func (r Runtime) operand(node *Node, index int) EvaluationResult {
-	log.Println("evaluating operand", node.Nodes[index])
-	return r.evaluate(node.Nodes[index])
+func (r Runtime) operand(node *Node, index int, frame StackFrame) EvaluationResult {
+	//log.Println("evaluating operand", node.Nodes[index])
+	return r.evaluate(node.Nodes[index], frame)
 }
 
 // node: symbol atom of call site
 // first child is a function, followed by the arguments
-func (r Runtime) call_function(name string, args []*EvaluationResult, functionArguments *Node, functionBody *Node) EvaluationResult {
+func (r Runtime) call_function(callsite *Node, function FunctionEntry, frame StackFrame) EvaluationResult {
 	//interrupt to max stack
-	if r.MaxStack < len(*r.Stack) {
-		return EvaluationResult{Error: StackOverflow(r.MaxStack)}
-	}
-	// check arguments
-	if len(functionArguments.Nodes) != len(args) {
-		return EvaluationResult{Error: ArgumentsCountError(name, len(functionArguments.Nodes), len(args))}
-	}
-
-	for i := 0; i < len(args); i++ {
-		if args[i].Type != functionArguments.Nodes[i].Type {
-			return EvaluationResult{Error: TypeConsolidationError(args[i].Value, functionArguments.Nodes[i].Type)}
+	resolved := make([]EvaluationResultValue, len(callsite.Nodes)-1)
+	for i, n := range callsite.Nodes {
+		if i > 0 {
+			arg := r.evaluate(n, frame)
+			if arg.Type != function.Arguments.Nodes[i-1].Type {
+				return EvaluationResult{Error: TypeConsolidationError(arg.Value, function.Arguments.Nodes[i-1].Type)}
+			}
+			//log.Println("resolved argument", n, arg)
+			resolved[i-1] = arg.Value
 		}
 	}
-
-	log.Println("calling function", name, "args", args, "body", functionBody)
-	frame := StackFrame{ops.Add(1), name, args}
-	*r.Stack = append(*r.Stack, frame)
-	res := r.evaluate(functionBody)
-	top := (*r.Stack)[len(*r.Stack)-1]
-	if top.id != frame.id {
-		return EvaluationResult{Error: UnexpectedStackStateError()}
+	if r.Frame+1 == len(r.Stack) {
+		return EvaluationResult{Error: StackOverflow(r.Frame + 1)}
 	}
-	*r.Stack = (*r.Stack)[:len(*r.Stack)-1]
-	log.Println("function", name, "args", args, "result", res.Type, ":", res.Value)
+	// check arguments
+	if len(function.Arguments.Nodes) != len(resolved) {
+		return EvaluationResult{Error: ArgumentsCountError(callsite.Value, len(function.Arguments.Nodes), len(resolved))}
+	}
+
+	//log.Println("calling function", name, "args", args, "body", functionBody)
+	frame2 := StackFrame{ops.Add(1), resolved}
+	res := r.evaluate(function.Body, frame2)
+	//log.Println("function", name, "args", args, "result", res.Type, ":", res.Value)
 	return res
 }
 

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"log"
 	"slices"
 )
 
@@ -55,7 +54,7 @@ func (p *Parser) expression_node() *Node {
 		for !p.eq(p.Lexic.Punctuators.Close) {
 			// expression consists of atoms which can be other expressions, strings or basic atoms
 			node := p.atom_node()
-			log.Println("discovered atom within expression", node)
+			//log.Println("discovered atom within expression", node)
 			if node != nil {
 				nodes = append(nodes, node)
 			}
@@ -76,7 +75,7 @@ func (p Parser) setup_argument_references(node *Node, arguments *Node, location 
 			// the argument name corresponds the atom
 			if slices.Equal(a.Value, n.Value) {
 				n.Kind = ArgumentVariable
-				log.Println("argument reference setup for", a, n)
+				//log.Println("argument reference setup for", a, n)
 				n.ArgumentIndex = i
 				_, err := consolidate_type(n, a)
 				if err != nil {
@@ -106,7 +105,8 @@ func (p *Parser) literal_node() *Node {
 
 func (p *Parser) decl_node() *Node {
 	if p.peek().TokenKind == Keyword && p.eq("defun") {
-		log.Println("function declaration: discard", p.eat())
+		defun := p.eat()
+		//log.Println("function declaration: discard")
 		// we omit defun token, there is no value for node for it, we extract the callable symbol
 		// SymbolAtom
 		//  - Expression (arguments)
@@ -115,7 +115,7 @@ func (p *Parser) decl_node() *Node {
 		// extract arguments
 		arguments := p.expression_node()
 
-		log.Println("extracted arguments:", arguments)
+		//log.Println("extracted arguments:", arguments)
 		if arguments != nil {
 			args := []string{}
 			for _, arg := range arguments.Nodes {
@@ -125,13 +125,13 @@ func (p *Parser) decl_node() *Node {
 
 		// extract body
 		body := p.expression_node()
-		log.Println("extracted body:", body)
+		//log.Println("extracted body:", body)
 
 		// reference beteween the nodes inside of the body to the arguments
-		p.setup_argument_references(body, arguments, &name.Location)
+		p.setup_argument_references(body, arguments, &defun.Location)
 		// currently the function gets redeclared globally but we want to support functions scope
 		// e.g. function shadowed within function
-		(*p.SymbolTable.Functions)[string(name.Value)] = FunctionEntry{Name: string(name.Value), Body: body, Arguments: arguments}
+		(*p.SymbolTable.Functions)[string(name.Value)] = FunctionEntry{Name: string(name.Value), Body: body, Arguments: arguments, EvaluatedArguments: make([]EvaluationResult, len(arguments.Nodes))}
 		return node(Declaration, name, body.Type, []*Node{arguments, body})
 	}
 	return nil
@@ -224,4 +224,8 @@ func consolidate_type(input ...*Node) (ResultType, error) {
 		}
 	}
 	return first, nil
+}
+
+func logNode() {
+
 }
