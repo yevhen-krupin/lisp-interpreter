@@ -3,7 +3,6 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -34,7 +33,7 @@ const (
 type Node struct {
 	Kind          Kind
 	Type          ResultType
-	Value         []byte
+	Value         Value
 	Nodes         []*Node
 	ArgumentIndex int
 	Location      *Location
@@ -47,7 +46,7 @@ func node(kind Kind, token *Token, rt ResultType, nodes []*Node) *Node {
 	node.Value = token.Value
 	node.Nodes = nodes
 	node.Location = &token.Location
-	log.Println("node", fmt.Sprintf("%p", &node), ": kind ", kind, " | type ", rt, "| value ", string(token.Value), " | nodes", nodes)
+	//log.Println("node", fmt.Sprintf("%p", &node), ": kind ", kind, " | type ", rt, "| value ", value_to_any(token.Value), " | nodes", nodes)
 	return &node
 }
 

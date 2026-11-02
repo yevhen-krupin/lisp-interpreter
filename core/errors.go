@@ -20,7 +20,7 @@ func UnknownBinaryOperator(operator byte) error {
 	return fmt.Errorf("Unexpected binary operator encountered %v", operator)
 }
 
-func ArgumentsCountError(function []byte, expected int, actual int) error {
+func ArgumentsCountError(function string, expected int, actual int) error {
 	if actual < expected {
 		return fmt.Errorf("Too few arguments in call to %v\n%v arguments provided, at least %v required", string(function), actual, expected)
 	} else {

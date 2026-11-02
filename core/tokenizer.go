@@ -58,9 +58,48 @@ func (s TokenStream) Diagnostic() string {
 	return sb.String()
 }
 
+func ValueBoolean(value bool) Value {
+	return Value{T: 1, ValueBoolean: value}
+}
+
+func ValueInt(value int) Value {
+	return Value{T: 2, ValueInt: value}
+}
+
+func ValueString(value string) Value {
+	return Value{T: 3, ValueString: value}
+}
+
+type Value struct {
+	T            byte
+	ValueBoolean bool
+	ValueInt     int
+	ValueString  string
+}
+
+func (a Value) Equal(o Value) bool {
+	if a.T != o.T || a.ValueBoolean != o.ValueBoolean || a.ValueString != o.ValueString || a.ValueInt != o.ValueInt {
+		return false
+	}
+	return true
+}
+
+func value_to_any(data Value) any {
+	if data.T == 1 {
+		return data.ValueBoolean
+	}
+	if data.T == 2 {
+		return data.ValueInt
+	}
+	if data.T == 3 {
+		return data.ValueString
+	}
+	panic("value to any encountered unsupported type")
+}
+
 type Token struct {
 	TokenKind TokenKind
-	Value     []byte
+	Value     Value
 	Location  Location
 }
 
@@ -116,7 +155,7 @@ func (tokenizer *Tokenizer) tokenize0() ([]*Token, []Error) {
 func (p *Tokenizer) scope() *Token {
 	for _, s := range p.Lexic.Punctuators.All {
 		if p.are(s) {
-			return p.token(Punctuator, len(s))
+			return p.tokenS(Punctuator, len(s))
 		}
 	}
 	return nil
@@ -125,7 +164,7 @@ func (p *Tokenizer) scope() *Token {
 func (p *Tokenizer) operator() *Token {
 	for _, s := range p.Lexic.Operators {
 		if p.are(s) {
-			return p.token(Operator, len(s))
+			return p.tokenS(Operator, len(s))
 		}
 	}
 	return nil
@@ -135,12 +174,12 @@ func (p *Tokenizer) keyword() *Token {
 	for _, s := range p.Lexic.Keywords {
 		if p.are(s+" ") || p.are(s+"\n") {
 			// end of the word
-			return p.token(Keyword, len(s))
+			return p.tokenS(Keyword, len(s))
 		}
 		for _, pp := range p.Lexic.Punctuators.All {
 			// end of the word with punctuatore like `identifier,` or `identifier(` or `identifier)`
 			if p.are(s + pp) {
-				return p.token(Keyword, len(s))
+				return p.tokenS(Keyword, len(s))
 			}
 
 		}
@@ -155,11 +194,11 @@ func (p *Tokenizer) literal() *Token {
 			// skip 1 otherwise we find the same marker and it will be empty string
 			// + 1 because we count both open and close marker in the length
 			length := p.whilent([]byte{s[0]}, 1) + 1
-			token := p.tokenF(LiteralString, length, func(v []byte) []byte {
+			token := p.tokenF(LiteralString, length, func(v []byte) Value {
 				// drop the open and close marker
 				// [' . . . . ]
 				//  '[. . . .]'
-				return v[1 : len(v)-1]
+				return ValueString(string(v[1 : len(v)-1]))
 			})
 			return token
 		}
@@ -167,25 +206,25 @@ func (p *Tokenizer) literal() *Token {
 	// can be end of expression
 	for _, s := range p.Lexic.Literals.True {
 		if p.are(s+" ") || p.are(s+")") {
-			return p.tokenV(LiteralBool, len(s), []byte{1})
+			return p.tokenV(LiteralBool, len(s), ValueBoolean(true))
 		}
 	}
 	// can be end of expression
 	for _, s := range p.Lexic.Literals.Null {
 		if p.are(s+" ") || p.are(s+")") {
-			return p.tokenV(LiteralBool, len(s), []byte{0})
+			return p.tokenV(LiteralBool, len(s), ValueBoolean(false))
 		}
 	}
 	// are numbers = literal
 	digits := p.while(unicode.IsDigit)
 	if digits > 0 {
-		return p.tokenF(LiteralInt, digits, func(v []byte) []byte {
+		return p.tokenF(LiteralInt, digits, func(v []byte) Value {
 			// convert bytes -> string -> number
 			i, err := strconv.Atoi(string(v))
 			if err != nil {
 				log.Println("Error: unable to convert", string(v), "to int:", err)
 			}
-			return int32_to_bytes(i)
+			return ValueInt(i)
 		})
 	}
 	return nil
@@ -198,7 +237,7 @@ func (p *Tokenizer) identifier() *Token {
 		length := p.while(func(r rune) bool {
 			return unicode.IsDigit(r) || unicode.IsLetter(r)
 		})
-		return p.token(Identifier, length)
+		return p.tokenS(Identifier, length)
 	}
 	return nil
 }
@@ -207,23 +246,28 @@ func (p *Tokenizer) comment() *Token {
 	for _, s := range p.Lexic.Comments.Line {
 		if p.are(s) {
 			length := p.whilent([]byte{'\n'}, 1)
-			return p.token(Comment, length)
+			return p.tokenS(Comment, length)
 		}
 	}
 	return nil
 }
 
-func (p *Tokenizer) token(kind TokenKind, len int) *Token {
+func (p *Tokenizer) tokenS(kind TokenKind, len int) *Token {
 	location, value := p.drop(len)
+	return &Token{kind, ValueString(string(value)), location}
+}
+
+func (p *Tokenizer) tokenI(kind TokenKind, len int) *Token {
+	location, value := p.drop(len)
+	return &Token{kind, ValueInt(bytes_to_int32(value)), location}
+}
+
+func (p *Tokenizer) tokenV(kind TokenKind, len int, value Value) *Token {
+	location, _ := p.drop(len)
 	return &Token{kind, value, location}
 }
 
-func (p *Tokenizer) tokenV(kind TokenKind, len int, override []byte) *Token {
-	location, _ := p.drop(len)
-	return &Token{kind, override, location}
-}
-
-func (p *Tokenizer) tokenF(kind TokenKind, len int, convert func(v []byte) []byte) *Token {
+func (p *Tokenizer) tokenF(kind TokenKind, len int, convert func(v []byte) Value) *Token {
 	location, value := p.drop(len)
 	return &Token{kind, convert(value), location}
 }

@@ -14,27 +14,6 @@ func bytes_to_int32(bytes []byte) int {
 	return v
 }
 
-func value_to_any(data []byte) any {
-	if len(data) == 1 {
-		if data[0] == 0 {
-			return false
-		}
-		if data[0] == 1 {
-			return true
-		}
-	}
-	if len(data) != 4 {
-		return string(data)
-	}
-	for _, ch := range data {
-		// only bytes of real numbers, not characters meaning digits
-		if ch > 9 {
-			return string(data)
-		}
-	}
-	return bytes_to_int32(data)
-}
-
 func coalesce[TIn any, TOut comparable](in TIn, nodes ...func(TIn) TOut) TOut {
 	var zero TOut
 	for _, f := range nodes {

@@ -1,9 +1,5 @@
 package core
 
-import (
-	"slices"
-)
-
 type Parser struct {
 	SymbolTable *SymbolTable
 	Errors      *[]Error
@@ -73,7 +69,7 @@ func (p Parser) setup_argument_references(node *Node, arguments *Node, location 
 	for _, n := range node.Nodes {
 		for i, a := range arguments.Nodes {
 			// the argument name corresponds the atom
-			if slices.Equal(a.Value, n.Value) {
+			if a.Value.Equal(n.Value) {
 				n.Kind = ArgumentVariable
 				//log.Println("argument reference setup for", a, n)
 				n.ArgumentIndex = i
@@ -119,7 +115,7 @@ func (p *Parser) decl_node() *Node {
 		if arguments != nil {
 			args := []string{}
 			for _, arg := range arguments.Nodes {
-				args = append(args, string(arg.Value))
+				args = append(args, arg.Value.ValueString)
 			}
 		}
 
@@ -131,7 +127,8 @@ func (p *Parser) decl_node() *Node {
 		p.setup_argument_references(body, arguments, &defun.Location)
 		// currently the function gets redeclared globally but we want to support functions scope
 		// e.g. function shadowed within function
-		(*p.SymbolTable.Functions)[string(name.Value)] = FunctionEntry{Name: string(name.Value), Body: body, Arguments: arguments, EvaluatedArguments: make([]EvaluationResult, len(arguments.Nodes))}
+		entry := FunctionEntry{Name: name.Value.ValueString, Body: body, Arguments: arguments, EvaluatedArguments: make([]EvaluationResult, len(arguments.Nodes))}
+		(*p.SymbolTable.Functions)[name.Value.ValueString] = entry
 		return node(Declaration, name, body.Type, []*Node{arguments, body})
 	}
 	return nil
@@ -202,12 +199,7 @@ func (p *Parser) eat() *Token {
 }
 
 func (p *Parser) eq(str string) bool {
-	for i, ch := range p.peek().Value {
-		if str[i] != ch {
-			return false
-		}
-	}
-	return true
+	return p.peek().Value.ValueString == str
 }
 
 func consolidate_type(input ...*Node) (ResultType, error) {
