@@ -3,12 +3,17 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 
 	interpreter "ykrupin.com/lisp-interpreter-core"
+
+	_ "net/http/pprof"
 )
 
 var lisp = interpreter.Lisp()
@@ -22,7 +27,18 @@ func main() {
 	input, oki := interpreter.GetArgument("-i", "--input")
 	output, oko := interpreter.GetArgument("-o", "--output")
 	ms, okm := interpreter.GetArgument("-ms", "--max-stack")
-
+	profile, okp := interpreter.GetArgument("-p", "--profile")
+	if okp {
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+		f, err := os.Create(profile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 	if okm {
 		if msi, err := strconv.Atoi(ms); err != nil {
 			log.Fatalln(err)
@@ -36,6 +52,8 @@ func main() {
 	}
 	if oko {
 		defer interpreter.ToDisk(output, "log.log").Close()
+	} else {
+		log.SetOutput(io.Discard)
 	}
 	if oki {
 		file(input)

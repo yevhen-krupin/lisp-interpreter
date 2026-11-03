@@ -8,35 +8,71 @@ import (
 
 // "fmt"
 
-type ResultType string
+type ResultType byte
 
 const (
-	Boolean ResultType = "Boolean"
-	String  ResultType = "String"
-	Int     ResultType = "Int"
-	Failure ResultType = "Failure"
-	Unknown ResultType = "Unknown"
+	Boolean ResultType = iota
+	String
+	Int
+	Failure
+	Unknown
 )
 
-type Kind string
+func (n ResultType) String() string {
+	switch n {
+	case Boolean:
+		return "Boolean"
+	case String:
+		return "String"
+	case Int:
+		return "Int"
+	case Failure:
+		return "Failure"
+	case Unknown:
+		return "Unknown"
+	}
+	panic(fmt.Sprintf("unknown ResultType: %d", n))
+}
+
+type Kind byte
 
 const (
-	Expression       Kind = "Expression"
-	Atom             Kind = "Atom"
-	ConditionAtom    Kind = "ConditionAtom"
-	Declaration      Kind = "Declaration"
-	SymbolAtom       Kind = "SymbolAtom"
-	BinaryOperator   Kind = "BinaryOperator"
-	ArgumentVariable Kind = "ArgumentVariable"
+	Expression = iota
+	Atom
+	ConditionAtom
+	Declaration
+	SymbolAtom
+	BinaryOperator
+	ArgumentVariable
 )
+
+func (n Kind) String() string {
+	switch n {
+	case Expression:
+		return "Expression"
+	case Atom:
+		return "Atom"
+	case ConditionAtom:
+		return "ConditionAtom"
+	case Declaration:
+		return "Declaration"
+	case SymbolAtom:
+		return "SymbolAtom"
+	case BinaryOperator:
+		return "BinaryOperator"
+	case ArgumentVariable:
+		return "ArgumentVariable"
+	}
+	panic(fmt.Sprintf("unknown Kind: %d", n))
+}
 
 type Node struct {
-	Kind          Kind
-	Type          ResultType
-	Value         Value
 	Nodes         []*Node
+	Kind          Kind
+	Value         Value
 	ArgumentIndex int
 	Location      *Location
+	Type          ResultType
 }
 
 func node(kind Kind, token *Token, rt ResultType, nodes []*Node) *Node {

@@ -22,7 +22,11 @@ func (t Scope) Close() {
 	}
 }
 func (t Scope) Name() string {
-	return t.f.Name()
+	if abs, err := filepath.Abs(t.f.Name()); err == nil {
+		return abs
+	} else {
+		panic(err)
+	}
 }
 
 func ToDisk(dir string, file string) Scope {

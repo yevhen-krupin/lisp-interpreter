@@ -9,7 +9,7 @@ type Parser struct {
 }
 
 type SymbolTable struct {
-	Functions *map[string]FunctionEntry
+	Functions *map[int]FunctionEntry
 }
 
 func ParseAst(input string, symbolTable *SymbolTable, lexic *Lexic) (*Node, TokenStream, []Error) {
@@ -56,9 +56,9 @@ func (p *Parser) expression_node() *Node {
 			}
 		}
 		p.eat()
-		t, err := consolidate_type(nodes...)
-		if err != nil {
-			p.record_error(err, &beginning.Location)
+		t, v := consolidate_type(nodes...)
+		if v.T == Failure {
+			p.record_error(v, &beginning.Location)
 		}
 		return node(Expression, beginning, t, nodes)
 	}
@@ -73,9 +73,9 @@ func (p Parser) setup_argument_references(node *Node, arguments *Node, location 
 				n.Kind = ArgumentVariable
 				//log.Println("argument reference setup for", a, n)
 				n.ArgumentIndex = i
-				_, err := consolidate_type(n, a)
-				if err != nil {
-					p.record_error(err, node.Location)
+				_, v := consolidate_type(n, a)
+				if v.T == Failure {
+					p.record_error(v, node.Location)
 				}
 			}
 		}
@@ -127,8 +127,8 @@ func (p *Parser) decl_node() *Node {
 		p.setup_argument_references(body, arguments, &defun.Location)
 		// currently the function gets redeclared globally but we want to support functions scope
 		// e.g. function shadowed within function
-		entry := FunctionEntry{Name: name.Value.ValueString, Body: body, Arguments: arguments, EvaluatedArguments: make([]EvaluationResult, len(arguments.Nodes))}
-		(*p.SymbolTable.Functions)[name.Value.ValueString] = entry
+		entry := FunctionEntry{Name: name.Value.ValueString, Body: body, Arguments: arguments, EvaluatedArguments: make([]Value, len(arguments.Nodes))}
+		(*p.SymbolTable.Functions)[name.Value.ValueInt] = entry // use hash
 		return node(Declaration, name, body.Type, []*Node{arguments, body})
 	}
 	return nil
@@ -139,9 +139,9 @@ func (p *Parser) condition_node() *Node {
 		body := p.atom_node()
 		left := p.atom_node()
 		right := p.atom_node()
-		t, err := consolidate_type(left, right)
-		if err != nil {
-			p.record_error(err, &name.Location)
+		t, v := consolidate_type(left, right)
+		if v.T == Failure {
+			p.record_error(v, &name.Location)
 		}
 		return node(ConditionAtom, name, t, []*Node{body, left, right})
 
@@ -154,9 +154,9 @@ func (p *Parser) binary_operator_node() *Node {
 		operator := p.eat()
 		operand1 := p.atom_node()
 		operand2 := p.atom_node()
-		t, err := consolidate_type(operand1, operand2)
-		if err != nil {
-			p.record_error(err, &operator.Location)
+		t, v := consolidate_type(operand1, operand2)
+		if v.T == Failure {
+			p.record_error(v, &operator.Location)
 		}
 		// TODO: this place looks hacky, need to figure out better way
 		operand1.Type = t
@@ -185,7 +185,7 @@ func (p *Parser) undefined_node() *Node {
 	return node(Atom, p.eat(), Unknown, []*Node{})
 }
 
-func (p Parser) record_error(err error, location *Location) {
+func (p Parser) record_error(err Value, location *Location) {
 	*p.Errors = append(*p.Errors, Error{err, *location})
 }
 
@@ -202,7 +202,7 @@ func (p *Parser) eq(str string) bool {
 	return p.peek().Value.ValueString == str
 }
 
-func consolidate_type(input ...*Node) (ResultType, error) {
+func consolidate_type(input ...*Node) (ResultType, Value) {
 	first := Unknown
 	for _, item := range input {
 		if first == Unknown && item.Type != Unknown {
@@ -211,13 +211,9 @@ func consolidate_type(input ...*Node) (ResultType, error) {
 			if item.Type == Unknown {
 				item.Type = first
 			} else if item.Type != first {
-				return Unknown, TypeConsolidationError(value_to_any(item.Value), first)
+				return Failure, TypeConsolidationError(item.Value, first)
 			}
 		}
 	}
-	return first, nil
-}
-
-func logNode() {
-
+	return first, Value{} // empty value to show there is no error
 }

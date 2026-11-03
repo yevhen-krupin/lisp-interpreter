@@ -10,18 +10,40 @@ import (
 	"unicode"
 )
 
-type TokenKind string
+type TokenKind byte
 
 const (
-	Identifier    TokenKind = "Identifier"
-	Operator      TokenKind = "Operator"
-	Punctuator    TokenKind = "Punctuator"
-	LiteralInt    TokenKind = "LiteralInt"
-	LiteralString TokenKind = "LiteralString"
-	LiteralBool   TokenKind = "LiteralBool"
-	Keyword       TokenKind = "Keyword"
-	Comment       TokenKind = "Comment"
+	Identifier TokenKind = iota
+	Operator
+	Punctuator
+	LiteralInt
+	LiteralString
+	LiteralBool
+	Keyword
+	Comment
 )
+
+func (n TokenKind) String() string {
+	switch n {
+	case Identifier:
+		return "Identifier"
+	case Operator:
+		return "Operator"
+	case Punctuator:
+		return "Punctuator"
+	case LiteralInt:
+		return "LiteralInt"
+	case LiteralString:
+		return "LiteralString"
+	case LiteralBool:
+		return "LiteralBool"
+	case Keyword:
+		return "Keyword"
+	case Comment:
+		return "Comment"
+	}
+	panic(fmt.Sprintf("unknown ResultType: %d", n))
+}
 
 type TokenStream []*Token
 
@@ -59,48 +81,60 @@ func (s TokenStream) Diagnostic() string {
 }
 
 func ValueBoolean(value bool) Value {
-	return Value{T: 1, ValueBoolean: value}
+	if value {
+		return Value{T: Boolean, ValueInt: 1}
+	}
+	return Value{T: Boolean, ValueInt: 0}
 }
 
 func ValueInt(value int) Value {
-	return Value{T: 2, ValueInt: value}
+	return Value{T: Int, ValueInt: value}
 }
 
 func ValueString(value string) Value {
-	return Value{T: 3, ValueString: value}
+	// also includes string hash
+	// might be collision prone when we convert to int()?
+	return Value{T: String, ValueString: value, ValueInt: int(HashString64(value))}
+}
+
+func ValueError(value string) Value {
+	return Value{T: Failure, ValueString: value}
 }
 
 type Value struct {
-	T            byte
-	ValueBoolean bool
-	ValueInt     int
-	ValueString  string
+	ValueString string
+	ValueInt    int
+	T           ResultType
 }
 
 func (a Value) Equal(o Value) bool {
-	if a.T != o.T || a.ValueBoolean != o.ValueBoolean || a.ValueString != o.ValueString || a.ValueInt != o.ValueInt {
+	if a.T != o.T || a.ValueString != o.ValueString || a.ValueInt != o.ValueInt {
 		return false
 	}
 	return true
 }
 
+func (a Value) String() string {
+	return fmt.Sprintf("%v", value_to_any(a))
+}
+
 func value_to_any(data Value) any {
-	if data.T == 1 {
-		return data.ValueBoolean
+	if data.T == Boolean {
+		return data.ValueInt == 1
 	}
-	if data.T == 2 {
+	if data.T == Int {
 		return data.ValueInt
 	}
-	if data.T == 3 {
+	if data.T == String {
 		return data.ValueString
 	}
-	panic("value to any encountered unsupported type")
+	panic(fmt.Sprintf("value to any encountered unsupported type %v: %v", data.T, data.ValueInt))
 }
 
 type Token struct {
-	TokenKind TokenKind
 	Value     Value
 	Location  Location
+	TokenKind TokenKind
 }
 
 type Tokenizer struct {
@@ -145,7 +179,7 @@ func (tokenizer *Tokenizer) tokenize0() ([]*Token, []Error) {
 			tokens = append(tokens, t)
 		} else {
 			if tokenizer.Position == last_pos {
-				errors = append(errors, Error{Location: tokenizer.location(), Error: fmt.Errorf("unknown token '%v'", tokenizer.Input[tokenizer.Position:len(tokenizer.Input)])})
+				errors = append(errors, Error{Location: tokenizer.location(), Error: ValueError(fmt.Sprintf("unknown token '%v'", tokenizer.Input[tokenizer.Position:len(tokenizer.Input)]))})
 			}
 		}
 	}
@@ -194,13 +228,11 @@ func (p *Tokenizer) literal() *Token {
 			// skip 1 otherwise we find the same marker and it will be empty string
 			// + 1 because we count both open and close marker in the length
 			length := p.whilent([]byte{s[0]}, 1) + 1
-			token := p.tokenF(LiteralString, length, func(v []byte) Value {
-				// drop the open and close marker
-				// [' . . . . ]
-				//  '[. . . .]'
-				return ValueString(string(v[1 : len(v)-1]))
-			})
-			return token
+			location, v := p.drop(length)
+			// drop the open and close marker
+			// [' . . . . ]
+			//  '[. . . .]'
+			return &Token{ValueString(string(v[1 : length-1])), location, LiteralString}
 		}
 	}
 	// can be end of expression
@@ -218,14 +250,7 @@ func (p *Tokenizer) literal() *Token {
 	// are numbers = literal
 	digits := p.while(unicode.IsDigit)
 	if digits > 0 {
-		return p.tokenF(LiteralInt, digits, func(v []byte) Value {
-			// convert bytes -> string -> number
-			i, err := strconv.Atoi(string(v))
-			if err != nil {
-				log.Println("Error: unable to convert", string(v), "to int:", err)
-			}
-			return ValueInt(i)
-		})
+		return p.tokenI(LiteralInt, digits)
 	}
 	return nil
 }
@@ -254,22 +279,26 @@ func (p *Tokenizer) comment() *Token {
 
 func (p *Tokenizer) tokenS(kind TokenKind, len int) *Token {
 	location, value := p.drop(len)
-	return &Token{kind, ValueString(string(value)), location}
+	return &Token{ValueString(string(value)), location, kind}
 }
 
 func (p *Tokenizer) tokenI(kind TokenKind, len int) *Token {
 	location, value := p.drop(len)
-	return &Token{kind, ValueInt(bytes_to_int32(value)), location}
+	i, err := strconv.Atoi(string(value))
+	if err != nil {
+		log.Println("Error: unable to convert", string(value), "to int:", err)
+	}
+	return &Token{ValueInt(i), location, kind}
 }
 
 func (p *Tokenizer) tokenV(kind TokenKind, len int, value Value) *Token {
 	location, _ := p.drop(len)
-	return &Token{kind, value, location}
+	return &Token{value, location, kind}
 }
 
 func (p *Tokenizer) tokenF(kind TokenKind, len int, convert func(v []byte) Value) *Token {
 	location, value := p.drop(len)
-	return &Token{kind, convert(value), location}
+	return &Token{convert(value), location, kind}
 }
 
 func (p *Tokenizer) in() bool {

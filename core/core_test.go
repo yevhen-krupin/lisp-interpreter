@@ -80,7 +80,7 @@ func TestTokenizer(tt *testing.T) {
 			// todo, test against errors
 			tokens, _ := tokenize(element.input, Lisp())
 			if !eq(tokens, element.output) {
-				t.Errorf("The input '%v' was expected to be tokenized as '%v' but was tokenized as '%v', log: %v", element.input, TokenStream(element.output).Diagnostic(), TokenStream(tokens).Diagnostic(), s.f.Name())
+				t.Errorf("The input '%v' was expected to be tokenized as '%v' but was tokenized as '%v', log: %v", element.input, TokenStream(element.output).Diagnostic(), TokenStream(tokens).Diagnostic(), s.Name())
 			}
 		})
 	}
@@ -91,13 +91,13 @@ func TestRecursion(tt *testing.T) {
 		"  (if (< n 2)" +
 		"      n" +
 		"      (+ (fib (- n 1)) (fib (- n 2)))))" +
-		"\n (fib 35list call_f)", 832040}}
+		"\n (fib 35)", 9227465}}
 	for index, element := range recursions {
 		tt.Run(fmt.Sprintf("recursion_test [%d] %v", index, element.input), func(t *testing.T) {
 			log.SetOutput(io.Discard)
 			result, errors := evaluate_test_case(element)
-			if result.Value != element.output {
-				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v'", element.input, element.output, result.Value)
+			if result.ValueInt != element.output {
+				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v'", element.input, element.output, result.ValueInt)
 				if len(errors) > 0 {
 					t.Errorf("The parser errors: %v", ErrorStream(errors).Diagnostic())
 				}
@@ -113,10 +113,10 @@ func TestEvaluation(tt *testing.T) {
 	}
 	var errors = []TestCase[[]Error]{
 		{"(+ 1 \"hello\")", []Error{
-			{TypeConsolidationError("hello", Int), Location{0, 0}}},
+			{TypeConsolidationError(ValueString("hello"), Int), Location{0, 0}}},
 		},
 		{"(+ 1 (+ 1 \"hello\"))", []Error{
-			{TypeConsolidationError("hello", Int), Location{0, 4}}},
+			{TypeConsolidationError(ValueString("hello"), Int), Location{0, 4}}},
 		},
 		{"(defun fib (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))\n(fib " + strconv.Itoa(MAX_STACK_SIZE+1) + ")", []Error{{StackOverflow(MAX_STACK_SIZE + 1), Location{0, 4}}}},
 	}
@@ -242,7 +242,7 @@ func TestEvaluation(tt *testing.T) {
 	for index, element := range strings {
 		tt.Run(fmt.Sprintf("string test [%d] %v", index, element.input), func(t *testing.T) {
 			result, file, errors := evaluate_test_case_to_file("TestEvaluation_strings", index, element)
-			if result.Value != element.output {
+			if result.ValueString != element.output {
 				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v', log: %v", element.input, element.output, result.String(), file.Name())
 				if len(errors) > 0 {
 					t.Errorf("The parser errors:\n %v", ErrorStream(errors).Diagnostic())
@@ -253,7 +253,7 @@ func TestEvaluation(tt *testing.T) {
 	for index, element := range bools {
 		tt.Run(fmt.Sprintf("bool test [%d] %v", index, element.input), func(t *testing.T) {
 			result, file, errors := evaluate_test_case_to_file("TestEvaluation_bools", index, element)
-			if result.Value != element.output {
+			if (result.ValueInt == 1) != element.output {
 				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v', log: %v", element.input, element.output, result.String(), file.Name())
 				if len(errors) > 0 {
 					t.Errorf("The parser errors: %v", ErrorStream(errors).Diagnostic())
@@ -264,7 +264,7 @@ func TestEvaluation(tt *testing.T) {
 	for index, element := range ints {
 		tt.Run(fmt.Sprintf("int test [%d] %v", index, element.input), func(t *testing.T) {
 			result, file, errors := evaluate_test_case_to_file("TestEvaluation_ints", index, element)
-			if result.Value != element.output {
+			if result.ValueInt != element.output {
 				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v', log: %v", element.input, element.output, result.String(), file.Name())
 				if len(errors) > 0 {
 					t.Errorf("The parser errors: %v", ErrorStream(errors).Diagnostic())
@@ -298,19 +298,19 @@ func TestEvaluation(tt *testing.T) {
 }
 
 func kw(s string, line int, pos int) *Token {
-	return &Token{Keyword, []byte(s), Location{line, pos}}
+	return &Token{ValueString(s), Location{line, pos}, Keyword}
 }
 
 func so(line int, pos int) *Token {
-	return &Token{Punctuator, []byte{'('}, Location{line, pos}}
+	return &Token{ValueString("("), Location{line, pos}, Punctuator}
 }
 
 func sc(line int, pos int) *Token {
-	return &Token{Punctuator, []byte{')'}, Location{line, pos}}
+	return &Token{ValueString(")"), Location{line, pos}, Punctuator}
 }
 
 func o(op string, line int, pos int) *Token {
-	return &Token{Operator, []byte(op), Location{line, pos}}
+	return &Token{ValueString(op), Location{line, pos}, Operator}
 }
 
 func t(args ...*Token) []*Token {
@@ -318,23 +318,23 @@ func t(args ...*Token) []*Token {
 }
 
 func d(i int, line int, pos int) *Token {
-	return &Token{LiteralInt, int32_to_bytes(i), Location{line, pos}}
+	return &Token{ValueInt(i), Location{line, pos}, LiteralInt}
 }
 
 func f(line int, pos int) *Token {
-	return &Token{Keyword, []byte("defun"), Location{line, pos}}
+	return &Token{ValueString("defun"), Location{line, pos}, Keyword}
 }
 
 func i(s string, line int, pos int) *Token {
-	return &Token{Identifier, []byte(s), Location{line, pos}}
+	return &Token{ValueString(s), Location{line, pos}, Identifier}
 }
 
 func s(s string, line int, pos int) *Token {
-	return &Token{LiteralString, []byte(s), Location{line, pos}}
+	return &Token{ValueString(s), Location{line, pos}, LiteralString}
 }
 
 func c(c string, line int, pos int) *Token {
-	return &Token{Comment, []byte(c), Location{line, pos}}
+	return &Token{ValueString(c), Location{line, pos}, Comment}
 }
 
 func eq(a []*Token, b []*Token) bool {
@@ -345,10 +345,8 @@ func eq(a []*Token, b []*Token) bool {
 		if e.TokenKind != b[i].TokenKind || e.Location.Line != b[i].Location.Line || e.Location.Position != b[i].Location.Position {
 			return false
 		}
-		for j, ch := range e.Value {
-			if ch != b[i].Value[j] {
-				return false
-			}
+		if e.Value.Equal(b[i].Value) == false {
+			return false
 		}
 	}
 
@@ -360,7 +358,11 @@ func eq_err(a []Error, b []Error) bool {
 		return false
 	}
 	for i, e := range a {
-		if e.Error.Error() != b[i].Error.Error() || e.Location.Line != b[i].Location.Line || e.Location.Position != b[i].Location.Position {
+		if e.Error.T != Failure || b[i].Error.T != Failure {
+			return false
+		}
+
+		if e.Error.Equal(b[i].Error) == false || e.Location.Line != b[i].Location.Line || e.Location.Position != b[i].Location.Position {
 			return false
 		}
 	}
@@ -380,15 +382,15 @@ type TestResult struct {
 	fail int
 }
 
-func evaluate_test_case_to_file[T int | bool | string | []Error](name string, index int, element TestCase[T]) (EvaluationResult, Scope, []Error) {
+func evaluate_test_case_to_file[T int | bool | string | []Error](name string, index int, element TestCase[T]) (Value, Scope, []Error) {
 	s := ToDisk(TEST_DIR, fmt.Sprintf("%v_%v.log", name, index))
 	defer s.Close()
 	r, errors := evaluate_test_case(element)
 	return r, s, errors
 }
 
-func evaluate_test_case[T int | bool | string | []Error](element TestCase[T]) (EvaluationResult, []Error) {
-	results := []EvaluationResult{}
+func evaluate_test_case[T int | bool | string | []Error](element TestCase[T]) (Value, []Error) {
+	results := []Value{}
 	nodes := []*Node{}
 	subs := strings.SplitSeq(element.input, "\n")
 	errors := []Error{}
@@ -401,8 +403,8 @@ func evaluate_test_case[T int | bool | string | []Error](element TestCase[T]) (E
 		nodes = append(nodes, ast)
 		r := runtime.EvaluateAst(ast)
 		results = append(results, r)
-		if r.Error != nil {
-			log.Println("Failed to evaluate due to", r.Error.Error())
+		if r.T == Failure {
+			log.Println("Failed to evaluate due to", r.ValueString)
 		}
 	}
 	final := results[len(results)-1]
@@ -410,9 +412,9 @@ func evaluate_test_case[T int | bool | string | []Error](element TestCase[T]) (E
 	log.Println("Functions declared:", runtime.SymbolTable.Functions)
 	for i, r := range results {
 		if i == len(results)-1 {
-			log.Println("Evaluated as", r.Type, r.Value, " but has to be", element.output)
+			log.Println("Evaluated as", r.T, value_to_any(r), " but has to be", element.output)
 		} else {
-			log.Println("Evaluated as:", r.Type, r.Value)
+			log.Println("Evaluated as:", r.T, value_to_any(r))
 		}
 		log.Println(nodes[i].String())
 	}

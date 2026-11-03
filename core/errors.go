@@ -6,34 +6,34 @@ import (
 )
 
 type Error struct {
-	Error    error
+	Error    Value
 	Location Location
 }
 
 type ParserErrors string
 
-func TypeConsolidationError(val any, expected ResultType) error {
-	return fmt.Errorf("The value %v is not of the expected type %v", val, expected)
+func TypeConsolidationError(val Value, expected ResultType) Value {
+	return ValueError(fmt.Sprintf("The value %v is not of the expected type %v", value_to_any(val), expected))
 }
 
-func UnknownBinaryOperator(operator byte) error {
-	return fmt.Errorf("Unexpected binary operator encountered %v", operator)
+func UnknownBinaryOperator(operator byte) Value {
+	return ValueError(fmt.Sprintf("Unexpected binary operator encountered %v", operator))
 }
 
-func ArgumentsCountError(function string, expected int, actual int) error {
+func ArgumentsCountError(function string, expected int, actual int) Value {
 	if actual < expected {
-		return fmt.Errorf("Too few arguments in call to %v\n%v arguments provided, at least %v required", string(function), actual, expected)
+		return ValueError(fmt.Sprintf("Too few arguments in call to %v\n%v arguments provided, at least %v required", string(function), actual, expected))
 	} else {
-		return fmt.Errorf("Too many arguments in call to %v\n%v arguments provided, at most %v required", string(function), actual, expected)
+		return ValueError(fmt.Sprintf("Too many arguments in call to %v\n%v arguments provided, at most %v required", string(function), actual, expected))
 	}
 }
 
-func UnexpectedStackStateError() error {
-	return fmt.Errorf("unexpected state: the stack frame after leaving the function is not correct")
+func UnexpectedStackStateError() Value {
+	return ValueError("unexpected state: the stack frame after leaving the function is not correct")
 }
 
-func StackOverflow(depth int) error {
-	return fmt.Errorf("Stack overflow at size %v. Stack can probably be resized.", depth)
+func StackOverflow(depth byte) Value {
+	return ValueError(fmt.Sprintf("Stack overflow at size %v. Stack can probably be resized.", depth))
 }
 
 type ErrorStream []Error
