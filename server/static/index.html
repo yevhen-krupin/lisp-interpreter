@@ -208,7 +208,8 @@
           this.ws.onopen = () => this.connected = true;
           this.ws.onclose = () => this.connected = false;
           this.ws.onmessage = e => {
-            this.output += JSON.parse(e.data).resultString;
+            r = JSON.parse(e.data)
+            this.output += r.resultString + "\n[duration:" + r.durationMs + "ms]"
             this.$nextTick(() => {
               this.$refs.output.scrollTop = this.$refs.output.scrollHeight;
             });

@@ -1,1 +1,1 @@
-./lisp-repl-server -o build/test/work
+go build -o lisp-repl-server && ./lisp-repl-server -o build/test/work

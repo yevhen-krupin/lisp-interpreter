@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 	interpreter "ykrupin.com/lisp-interpreter-core"
@@ -58,9 +59,11 @@ func serve(w http.ResponseWriter, r *http.Request) {
 		expressions := strings.Split(string(message), "\\n")
 		log.Println("input provided", expressions)
 		for _, ex := range expressions {
+			start := time.Now().UTC().UnixMilli()
 			ast, t, err := interpreter.ParseAst(strings.TrimLeft(ex, "\n"), runtime.SymbolTable, lisp)
 			r := runtime.EvaluateAst(ast)
-			resp := &Response{Tokens: t, Ast: ast, Result: r, ResultString: r.String(), Errors: err}
+			end := time.Now().UTC().UnixMilli()
+			resp := &Response{Tokens: t, Ast: ast, Result: r, ResultString: r.String(), Errors: err, DurationMs: end - start}
 			if ser, err := json.Marshal(resp); err != nil {
 				log.Println(err)
 			} else {
@@ -78,9 +81,10 @@ func serve(w http.ResponseWriter, r *http.Request) {
 }
 
 type Response struct {
-	Tokens       interpreter.TokenStream      `json:"tokens"`
-	Ast          *interpreter.Node            `json:"ast"`
-	Result       interpreter.EvaluationResult `json:"result"`
-	ResultString string                       `json:"resultString"`
-	Errors       []interpreter.Error          `json:"errors"`
+	Tokens       interpreter.TokenStream `json:"tokens"`
+	Ast          *interpreter.Node       `json:"ast"`
+	Result       interpreter.Value       `json:"result"`
+	ResultString string                  `json:"resultString"`
+	Errors       []interpreter.Error     `json:"errors"`
+	DurationMs   int64                   `json:"durationMs"`
 }

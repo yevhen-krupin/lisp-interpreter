@@ -10,6 +10,7 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"time"
 
 	interpreter "ykrupin.com/lisp-interpreter-core"
 
@@ -101,10 +102,12 @@ func repl() {
 		if err != nil {
 			fmt.Println(err)
 		} else {
+			start := time.Now().UTC().UnixMilli()
 			ast, _, _ := interpreter.ParseAst(string(sentence[:len(sentence)-1]), runtime.SymbolTable, lisp)
-			log.Println(ast.String())
 			r := runtime.EvaluateAst(ast)
-			fmt.Println(r.String())
+			end := time.Now().UTC().UnixMilli()
+			log.Println(ast.String())
+			fmt.Println(r.String(), "[duration:", end-start, "ms]")
 		}
 	}
 }
