@@ -9,7 +9,7 @@ type Parser struct {
 }
 
 type SymbolTable struct {
-	Functions *map[int]FunctionEntry
+	Functions *map[string]*FunctionEntry
 }
 
 func ParseAst(input string, symbolTable *SymbolTable, lexic *Lexic) (*Node, TokenStream, []Error) {
@@ -119,16 +119,18 @@ func (p *Parser) decl_node() *Node {
 			}
 		}
 
+		entry := &FunctionEntry{Body: nil, Arguments: arguments, EvaluatedArguments: make([]Value, len(arguments.Nodes))}
+		(*p.SymbolTable.Functions)[name.Value.ValueString] = entry // use hash
+		//log.Println("declared", name.Value.ValueStr)
 		// extract body
 		body := p.expression_node()
+		entry.Body = body
 		//log.Println("extracted body:", body)
 
 		// reference beteween the nodes inside of the body to the arguments
 		p.setup_argument_references(body, arguments, &defun.Location)
 		// currently the function gets redeclared globally but we want to support functions scope
 		// e.g. function shadowed within function
-		entry := FunctionEntry{Name: name.Value.ValueString, Body: body, Arguments: arguments, EvaluatedArguments: make([]Value, len(arguments.Nodes))}
-		(*p.SymbolTable.Functions)[name.Value.ValueInt] = entry // use hash
 		return node(Declaration, name, body.Type, []*Node{arguments, body})
 	}
 	return nil
@@ -168,21 +170,47 @@ func (p *Parser) binary_operator_node() *Node {
 
 func (p *Parser) identifier() *Node {
 	if p.peek().TokenKind == Identifier {
-		// variable or function call, resolved at runtime
-		return node(SymbolAtom, p.eat(), Unknown, []*Node{})
+		name := p.eat()
+		// todo: move to expression
+		//log.Println("looking for function ", name.Value.ValueStr)
+		// function call
+		if name.Value.T == String {
+			if f, ok := (*p.SymbolTable.Functions)[name.Value.ValueString]; ok {
+				var args = make([]*Node, len(f.Arguments.Nodes))
+				for i, a := range f.Arguments.Nodes {
+					args[i] = p.atom_node()
+					if args[i].Type != a.Type {
+						p.record_error(TypeConsolidationError(args[i].Value, a.Type), args[i].Location)
+					}
+				}
+				// check arguments
+				if len(f.Arguments.Nodes) != len(args) {
+					p.record_error(ArgumentsCountError(name.Value.ValueString, len(f.Arguments.Nodes), len(args)), &name.Location)
+				}
+
+				return funcnode(CallSite, name, Unknown, args, f)
+			}
+		}
+
+		// variable
+		return node(SymbolAtom, name, Unknown, []*Node{})
+
 	}
 	return nil
 }
 
 func (p *Parser) peek() *Token {
 	if !p.in() {
-		return &Token{}
+		return &Token{TokenKind: EOF}
 	}
 	return p.Input[p.Position]
 }
 
 func (p *Parser) undefined_node() *Node {
-	return node(Atom, p.eat(), Unknown, []*Node{})
+	if p.in() {
+		return node(Atom, p.eat(), Unknown, []*Node{})
+	}
+	return nil
 }
 
 func (p Parser) record_error(err Value, location *Location) {

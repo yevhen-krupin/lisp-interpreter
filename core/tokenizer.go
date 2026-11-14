@@ -21,6 +21,7 @@ const (
 	LiteralBool
 	Keyword
 	Comment
+	EOF
 )
 
 func (n TokenKind) String() string {
@@ -98,17 +99,19 @@ func ValueString(value string) Value {
 }
 
 func ValueError(value string) Value {
-	return Value{T: Failure, ValueString: value}
+	idx := HashString64(value)
+	//log.Println("assign ValueError", "assigned", value, "index", idx)
+	return Value{T: Failure, ValueInt: int(idx), ValueString: value}
 }
 
 type Value struct {
-	ValueString string
 	ValueInt    int
 	T           ResultType
+	ValueString string
 }
 
-func (a Value) Equal(o Value) bool {
-	if a.T != o.T || a.ValueString != o.ValueString || a.ValueInt != o.ValueInt {
+func (a *Value) Equal(o Value) bool {
+	if a.T != o.T || a.ValueInt != o.ValueInt {
 		return false
 	}
 	return true
@@ -128,7 +131,7 @@ func value_to_any(data Value) any {
 	if data.T == String {
 		return data.ValueString
 	}
-	panic(fmt.Sprintf("value to any encountered unsupported type %v: %v", data.T, data.ValueInt))
+	panic(fmt.Sprintf("value to any encountered unsupported type %v: %v : %v", data.T, data.ValueInt, data.ValueString))
 }
 
 type Token struct {

@@ -37,11 +37,12 @@ func (n ResultType) String() string {
 type Kind byte
 
 const (
-	Expression = iota
+	Expression Kind = iota
 	Atom
 	ConditionAtom
 	Declaration
 	SymbolAtom
+	CallSite
 	BinaryOperator
 	ArgumentVariable
 )
@@ -58,6 +59,8 @@ func (n Kind) String() string {
 		return "Declaration"
 	case SymbolAtom:
 		return "SymbolAtom"
+	case CallSite:
+		return "CallSite"
 	case BinaryOperator:
 		return "BinaryOperator"
 	case ArgumentVariable:
@@ -72,6 +75,7 @@ type Node struct {
 	Value         Value
 	ArgumentIndex int
 	Location      *Location
+	Function      *FunctionEntry
 	Type          ResultType
 }
 
@@ -82,6 +86,18 @@ func node(kind Kind, token *Token, rt ResultType, nodes []*Node) *Node {
 	node.Value = token.Value
 	node.Nodes = nodes
 	node.Location = &token.Location
+	//log.Println("node", fmt.Sprintf("%p", &node), ": kind ", kind, " | type ", rt, "| value ", value_to_any(token.Value), " | nodes", nodes)
+	return &node
+}
+
+func funcnode(kind Kind, token *Token, rt ResultType, nodes []*Node, function *FunctionEntry) *Node {
+	var node Node
+	node.Type = rt
+	node.Kind = kind
+	node.Value = token.Value
+	node.Nodes = nodes
+	node.Location = &token.Location
+	node.Function = function
 	//log.Println("node", fmt.Sprintf("%p", &node), ": kind ", kind, " | type ", rt, "| value ", value_to_any(token.Value), " | nodes", nodes)
 	return &node
 }

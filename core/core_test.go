@@ -91,11 +91,12 @@ func TestRecursion(tt *testing.T) {
 		"  (if (< n 2)" +
 		"      n" +
 		"      (+ (fib (- n 1)) (fib (- n 2)))))" +
-		"\n (fib 35)", 9227465}}
+		"\n (fib 35)", 9227465},
+		{"(defun fact (n) (if (<= n 1) 1 (* n (fact (- n 1)))))\nfact(20)", 2432902008176640000}}
 	for index, element := range recursions {
 		tt.Run(fmt.Sprintf("recursion_test [%d] %v", index, element.input), func(t *testing.T) {
 			log.SetOutput(io.Discard)
-			result, errors := evaluate_test_case(element)
+			result, _, errors := evaluate_test_case_to_file("TestEvaluation_rec", index, element)
 			if result.ValueInt != element.output {
 				t.Errorf("The input '%v' was expected to be evaluated as '%v' but was evaluated as '%v'", element.input, element.output, result.ValueInt)
 				if len(errors) > 0 {
@@ -104,7 +105,6 @@ func TestRecursion(tt *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestEvaluation(tt *testing.T) {
@@ -411,12 +411,12 @@ func evaluate_test_case[T int | bool | string | []Error](element TestCase[T]) (V
 
 	log.Println("Functions declared:", runtime.SymbolTable.Functions)
 	for i, r := range results {
+		log.Println("input", nodes[i].String())
 		if i == len(results)-1 {
 			log.Println("Evaluated as", r.T, value_to_any(r), " but has to be", element.output)
 		} else {
 			log.Println("Evaluated as:", r.T, value_to_any(r))
 		}
-		log.Println(nodes[i].String())
 	}
 
 	return final, errors

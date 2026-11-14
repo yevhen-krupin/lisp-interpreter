@@ -3,10 +3,7 @@ package core
 import (
 	"fmt"
 	"strings"
-	"sync/atomic"
 )
-
-var ops atomic.Uint64
 
 type Runtime struct {
 	Frame       byte
@@ -19,25 +16,24 @@ type StackFrame struct {
 }
 
 type FunctionEntry struct {
-	Name               string
 	Body               *Node
 	Arguments          *Node
 	EvaluatedArguments []Value
 }
 
 func NewRuntime(maxStack int) Runtime {
-	return Runtime{0, &SymbolTable{Functions: &map[int]FunctionEntry{}}}
+	return Runtime{0, &SymbolTable{Functions: &map[string]*FunctionEntry{}}}
 }
 
-func (r Runtime) EvaluateAst(ast *Node) Value {
+func (r *Runtime) EvaluateAst(ast *Node) Value {
 	return r.evaluate(ast, &StackFrame{})
 }
 
-func (r Runtime) evaluate(node *Node, frame *StackFrame) Value {
-	switch node.Kind {
-	//literals
-	case Atom:
+func (r *Runtime) evaluate(node *Node, frame *StackFrame) Value {
+	if node.Kind == Atom {
 		return node.Value
+	}
+	switch node.Kind {
 	case ConditionAtom:
 		if len(node.Nodes) != 3 {
 			return ValueError("condition atom should have 3 children nodes: condition body and two branches for true and false")
@@ -65,13 +61,9 @@ func (r Runtime) evaluate(node *Node, frame *StackFrame) Value {
 		return ValueString(strings.ToUpper(node.Value.ValueString))
 	case BinaryOperator:
 		return r.binary_operator(node, frame)
+	case CallSite:
+		return r.call_function(node, node.Function, frame)
 	case Expression:
-		// order matters, call function has to be first otherwise it will return the function name
-		if len(node.Nodes) > 0 && node.Nodes[0].Kind == SymbolAtom {
-			if f, ok := (*r.SymbolTable.Functions)[node.Nodes[0].Value.ValueInt]; ok {
-				return r.call_function(node, f, frame)
-			}
-		}
 		// expression that just returns something
 		if len(node.Nodes) == 1 {
 			return r.evaluate(node.Nodes[0], frame)
@@ -84,7 +76,7 @@ func (r Runtime) evaluate(node *Node, frame *StackFrame) Value {
 	return node.Value
 }
 
-func (r Runtime) binary_operator(oper *Node, frame *StackFrame) Value {
+func (r *Runtime) binary_operator(oper *Node, frame *StackFrame) Value {
 	//log.Println("evaluating binary operator", oper)
 	a := r.operand(oper, 0, frame)
 	b := r.operand(oper, 1, frame)
@@ -110,35 +102,28 @@ func (r Runtime) binary_operator(oper *Node, frame *StackFrame) Value {
 	return UnknownBinaryOperator(oper.Value.ValueString[0])
 }
 
-func (r Runtime) operand(node *Node, index int, frame *StackFrame) Value {
+func (r *Runtime) operand(node *Node, index int, frame *StackFrame) Value {
 	//log.Println("evaluating operand", node.Nodes[index])
 	return r.evaluate(node.Nodes[index], frame)
 }
 
 // node: symbol atom of call site
 // first child is a function, followed by the arguments
-func (r Runtime) call_function(callsite *Node, function FunctionEntry, frame *StackFrame) Value {
+func (r *Runtime) call_function(callsite *Node, function *FunctionEntry, frame *StackFrame) Value {
 	//interrupt to max stack
-	resolved := make([]Value, len(callsite.Nodes)-1)
+	resolved := make([]Value, len(callsite.Nodes))
 	for i, n := range callsite.Nodes {
-		if i > 0 {
-			arg := r.evaluate(n, frame)
-			if arg.T != function.Arguments.Nodes[i-1].Type {
-				return TypeConsolidationError(arg, function.Arguments.Nodes[i-1].Type)
-			}
-			//log.Println("resolved argument", n, arg)
-			resolved[i-1] = arg
+		arg := r.evaluate(n, frame)
+		if arg.T != function.Arguments.Nodes[i].Type {
+			return TypeConsolidationError(arg, function.Arguments.Nodes[i].Type)
 		}
+		//log.Println("resolved argument", n, arg)
+		resolved[i] = arg
 	}
-	// check arguments
-	if len(function.Arguments.Nodes) != len(resolved) {
-		return ArgumentsCountError(callsite.Value.ValueString, len(function.Arguments.Nodes), len(resolved))
-	}
-
-	//log.Println("calling function", function.Name, "args", resolved, "body", function.Body)
+	//log.Println("resolved", len(resolved), resolved)
 	frame2 := StackFrame{resolved, frame.id + 1}
 	res := r.evaluate(function.Body, &frame2)
-	//log.Println("function", name, "args", args, "result", res.Type, ":", res.Value)
+	//log.Println("function", callsite.Value.ValueString, callsite.Value.ValueInt, "args", resolved, "result", res.T, ":", res.ValueInt)
 	return res
 }
 
