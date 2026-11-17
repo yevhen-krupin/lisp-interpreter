@@ -6,8 +6,8 @@ import (
 )
 
 type Runtime struct {
-	Frame       byte
-	SymbolTable *SymbolTable
+	MaxStackSize int
+	SymbolTable  *SymbolTable
 }
 
 type StackFrame struct {
@@ -22,7 +22,7 @@ type FunctionEntry struct {
 }
 
 func NewRuntime(maxStack int) Runtime {
-	return Runtime{0, &SymbolTable{Functions: &map[string]*FunctionEntry{}}}
+	return Runtime{maxStack, &SymbolTable{Functions: &map[string]*FunctionEntry{}}}
 }
 
 func (r *Runtime) EvaluateAst(ast *Node) Value {
@@ -111,6 +111,9 @@ func (r *Runtime) operand(node *Node, index int, frame *StackFrame) Value {
 // first child is a function, followed by the arguments
 func (r *Runtime) call_function(callsite *Node, function *FunctionEntry, frame *StackFrame) Value {
 	//interrupt to max stack
+	if frame.id >= byte(r.MaxStackSize) {
+		return StackOverflow(byte(r.MaxStackSize))
+	}
 	resolved := make([]Value, len(callsite.Nodes))
 	for i, n := range callsite.Nodes {
 		arg := r.evaluate(n, frame)

@@ -131,6 +131,9 @@ func value_to_any(data Value) any {
 	if data.T == String {
 		return data.ValueString
 	}
+	if data.T == Failure {
+		return data.ValueString
+	}
 	panic(fmt.Sprintf("value to any encountered unsupported type %v: %v : %v", data.T, data.ValueInt, data.ValueString))
 }
 
