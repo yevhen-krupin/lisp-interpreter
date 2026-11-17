@@ -208,7 +208,9 @@
           this.ws.onopen = () => this.connected = true;
           this.ws.onclose = () => this.connected = false;
           this.ws.onmessage = e => {
-            this.output += JSON.parse(e.data).resultString + '\n';
+            data = JSON.parse(e.data)
+            this.output += data.resultString + '\n';
+            console.debug("duration ms: " + data.durationMs)
             this.$nextTick(() => {
               this.$refs.output.scrollTop = this.$refs.output.scrollHeight;
             });
@@ -227,6 +229,7 @@
           this.index = -1;
           this.output += `❯ ${cmd}\n`;
           this.ws.send(cmd);
+          console.debug("cmd: ", cmd)
           this.command = '';
         }
       };
